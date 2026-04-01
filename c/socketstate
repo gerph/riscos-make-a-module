@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -20,6 +21,7 @@ _kernel_oserror *socket_init(void)
         handles[i].socket_fd = -1;
         handles[i].active = 0;
         handles[i].remote_name[0] = '\0';
+        handles[i].buffer_len = 0;
     }
     return NULL;
 }
@@ -77,6 +79,7 @@ _kernel_oserror *socket_connect(const char *hostname, int port, int *handle)
             handles[i].active = 1;
             strncpy(handles[i].remote_name, hostname, sizeof(handles[i].remote_name) - 1);
             handles[i].remote_name[sizeof(handles[i].remote_name) - 1] = '\0';
+            handles[i].buffer_len = 0;
             *handle = i;
             return NULL;
         }
@@ -107,4 +110,201 @@ _kernel_oserror *socket_forget(int handle)
     handles[handle].active = 0;
     handles[handle].socket_fd = -1;
     return NULL;
+}
+
+_kernel_oserror *socket_send_line(int handle, const char *line)
+{
+    int len = strlen(line);
+    int s = handles[handle].socket_fd;
+    if (send(s, line, len, 0) < 0 || send(s, "\r\n", 2, 0) < 0) {
+        static _kernel_oserror err = {0, "Send failed"};
+        return &err;
+    }
+    return NULL;
+}
+
+_kernel_oserror *socket_read_line(int handle, char *buffer, int *size)
+{
+    int s = handles[handle].socket_fd;
+    int max = *size;
+    int i;
+    int found = 0;
+    int n;
+
+    // Search in existing buffer
+    for (i = 0; i < handles[handle].buffer_len; i++) {
+        if (handles[handle].buffer[i] == '\n') {
+            found = i + 1;
+            break;
+        }
+    }
+
+    if (!found) {
+        // Recv more data
+        n = recv(s, handles[handle].buffer + handles[handle].buffer_len,
+                 sizeof(handles[handle].buffer) - handles[handle].buffer_len, 0);
+        if (n > 0) {
+            handles[handle].buffer_len += n;
+            for (i = 0; i < handles[handle].buffer_len; i++) {
+                if (handles[handle].buffer[i] == '\n') {
+                    found = i + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (found) {
+        int to_copy = (found < max) ? found : max;
+        memcpy(buffer, handles[handle].buffer, to_copy);
+        memmove(handles[handle].buffer, handles[handle].buffer + found, handles[handle].buffer_len - found);
+        handles[handle].buffer_len -= found;
+        *size = to_copy;
+        return NULL;
+    }
+
+    *size = 0;
+    return NULL;
+}
+
+_kernel_oserror *socket_send_data(int handle, const void *data, int *size)
+{
+    int s = handles[handle].socket_fd;
+    int n = send(s, data, *size, 0);
+    if (n < 0) {
+        static _kernel_oserror err = {0, "Send data failed"};
+        return &err;
+    }
+    *size = n;
+    return NULL;
+}
+
+_kernel_oserror *socket_read_data(int handle, void *buffer, int *size)
+{
+    int s = handles[handle].socket_fd;
+    int n;
+    if (handles[handle].buffer_len > 0) {
+        int to_copy = (*size < handles[handle].buffer_len) ? *size : handles[handle].buffer_len;
+        memcpy(buffer, handles[handle].buffer, to_copy);
+        memmove(handles[handle].buffer, handles[handle].buffer + to_copy, handles[handle].buffer_len - to_copy);
+        handles[handle].buffer_len -= to_copy;
+        *size = to_copy;
+        return NULL;
+    }
+    n = recv(s, buffer, *size, 0);
+    if (n < 0) {
+        *size = 0;
+        return NULL; // Might be EWOULDBLOCK
+    }
+    *size = n;
+    return NULL;
+}
+
+_kernel_oserror *socket_closed(int handle, int *closed)
+{
+    char dummy;
+    int n = recv(handles[handle].socket_fd, &dummy, 1, MSG_PEEK);
+    if (n == 0) {
+        *closed = 1;
+    } else {
+        *closed = 0;
+    }
+    return NULL;
+}
+
+_kernel_oserror *socket_listen(int port, int *handle)
+{
+    int s;
+    struct sockaddr_in sin;
+    int i;
+    static _kernel_oserror err_sock = {0, "Socket creation failed"};
+    static _kernel_oserror err_bind = {0, "Bind failed"};
+    static _kernel_oserror err_list = {0, "Listen failed"};
+    static _kernel_oserror err_full = {0, "Too many open sockets"};
+
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) return &err_sock;
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(port);
+    sin.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        close(s);
+        return &err_bind;
+    }
+
+    if (listen(s, 5) < 0) {
+        close(s);
+        return &err_list;
+    }
+
+    // Find free handle
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        if (!handles[i].active) {
+            handles[i].socket_fd = s;
+            handles[i].active = 1;
+            strcpy(handles[i].remote_name, "LISTENING");
+            handles[i].buffer_len = 0;
+            *handle = i;
+            return NULL;
+        }
+    }
+
+    close(s);
+    return &err_full;
+}
+
+_kernel_oserror *socket_accept(int listen_handle, int *new_handle)
+{
+    int s;
+    struct sockaddr_in sin;
+    int len = sizeof(sin);
+    int i;
+    static _kernel_oserror err_accp = {0, "Accept failed"};
+    static _kernel_oserror err_full = {0, "Too many open sockets"};
+
+    s = accept(handles[listen_handle].socket_fd, (struct sockaddr *)&sin, &len);
+    if (s < 0) return &err_accp;
+
+    // Find free handle
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        if (!handles[i].active) {
+            handles[i].socket_fd = s;
+            handles[i].active = 1;
+            strcpy(handles[i].remote_name, inet_ntoa(sin.sin_addr));
+            handles[i].buffer_len = 0;
+            *new_handle = i;
+            return NULL;
+        }
+    }
+
+    close(s);
+    return &err_full;
+}
+
+_kernel_oserror *socket_connection_name(int handle, char **name)
+{
+    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
+        *name = "";
+        return NULL;
+    }
+    *name = handles[handle].remote_name;
+    return NULL;
+}
+
+void socket_enumerate(void)
+{
+    int i;
+    int count = 0;
+    printf("Handle  Remote Host\n");
+    printf("------  -----------\n");
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        if (handles[i].active) {
+            printf("%6d  %s\n", i, handles[i].remote_name);
+            count++;
+        }
+    }
+    printf("Total: %d active connections\n", count);
 }

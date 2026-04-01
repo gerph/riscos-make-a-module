@@ -11,6 +11,8 @@ typedef struct {
     int socket_fd;
     int active;
     char remote_name[256];
+    char buffer[4096];
+    int buffer_len;
 } socket_handle_t;
 
 _kernel_oserror *socket_init(void);
@@ -18,5 +20,14 @@ _kernel_oserror *socket_final(void);
 _kernel_oserror *socket_connect(const char *hostname, int port, int *handle);
 _kernel_oserror *socket_get_state(int handle, int *state);
 _kernel_oserror *socket_forget(int handle);
+_kernel_oserror *socket_send_line(int handle, const char *line);
+_kernel_oserror *socket_read_line(int handle, char *buffer, int *size);
+_kernel_oserror *socket_send_data(int handle, const void *data, int *size);
+_kernel_oserror *socket_read_data(int handle, void *buffer, int *size);
+_kernel_oserror *socket_closed(int handle, int *closed);
+_kernel_oserror *socket_listen(int port, int *handle);
+_kernel_oserror *socket_accept(int listen_handle, int *new_handle);
+_kernel_oserror *socket_connection_name(int handle, char **name);
+void socket_enumerate(void);
 
 #endif
