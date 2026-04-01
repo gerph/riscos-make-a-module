@@ -1,0 +1,110 @@
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include "kernel.h"
+#include "socketstate.h"
+
+static socket_handle_t handles[MAX_SOCKET_HANDLES];
+
+_kernel_oserror *socket_init(void)
+{
+    int i;
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        handles[i].socket_fd = -1;
+        handles[i].active = 0;
+        handles[i].remote_name[0] = '\0';
+    }
+    return NULL;
+}
+
+_kernel_oserror *socket_final(void)
+{
+    int i;
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        if (handles[i].active && handles[i].socket_fd != -1) {
+            close(handles[i].socket_fd);
+            handles[i].active = 0;
+            handles[i].socket_fd = -1;
+        }
+    }
+    return NULL;
+}
+
+_kernel_oserror *socket_connect(const char *hostname, int port, int *handle)
+{
+    struct hostent *hp;
+    struct sockaddr_in sin;
+    int s;
+    int i;
+    static _kernel_oserror err_host = {0, "Host not found"};
+    static _kernel_oserror err_sock = {0, "Socket creation failed"};
+    static _kernel_oserror err_conn = {0, "Connection failed"};
+    static _kernel_oserror err_full = {0, "Too many open sockets"};
+
+    hp = gethostbyname(hostname);
+    if (hp == NULL) {
+        return &err_host;
+    }
+
+    s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        sprintf(err_sock.errmess, "Socket creation failed (%d)", errno);
+        return &err_sock;
+    }
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(port);
+    memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
+
+    if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        sprintf(err_conn.errmess, "Connection failed (%d)", errno);
+        close(s);
+        return &err_conn;
+    }
+
+    // Find free handle
+    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
+        if (!handles[i].active) {
+            handles[i].socket_fd = s;
+            handles[i].active = 1;
+            strncpy(handles[i].remote_name, hostname, sizeof(handles[i].remote_name) - 1);
+            handles[i].remote_name[sizeof(handles[i].remote_name) - 1] = '\0';
+            *handle = i;
+            return NULL;
+        }
+    }
+
+    close(s);
+    return &err_full;
+}
+
+_kernel_oserror *socket_get_state(int handle, int *state)
+{
+    static _kernel_oserror err_handle = {0, "Invalid handle"};
+    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
+        return &err_handle;
+    }
+    *state = 1; // Basic state for now
+    return NULL;
+}
+
+_kernel_oserror *socket_forget(int handle)
+{
+    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
+        return NULL;
+    }
+    if (handles[handle].socket_fd != -1) {
+        close(handles[handle].socket_fd);
+    }
+    handles[handle].active = 0;
+    handles[handle].socket_fd = -1;
+    return NULL;
+}

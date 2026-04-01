@@ -25,18 +25,22 @@ EXPORTS    = ${EXP_C_H}.${COMPONENT}SWIs
 
 # Comma-separated list of paths to use for includes, such as:
 #	C:LibName.
-INCLUDES   =
+INCLUDES   = TCPIPLIBS:
 
 # Space separated list of libraries to link against, eg C:LibName.o.libLibName
 # (${CLIB} is implicit, unless NOCLIB = yes)
-LIBS       =
+LIBS       = TCPIPLIBS:o.inetlibzm \
+             TCPIPLIBS:o.socklibzm \
+             TCPIPLIBS:o.unixlibzm
+
 
 # Space separated list of defines to set, eg -DDEBUG
 CDEFINES   =
 
 # Objects to build, using the format o.<name> (will be varied for build type)
 OBJS       = o.modhead \
-			 o.module
+			 o.module \
+			 o.socketstate
 
 # By default we don't build Fortify in.
 # To include fortify in your module, #include "fortify.h" at the top of your C files
@@ -47,7 +51,8 @@ FORTIFY    = no
 include CModule
 
 # Additional dependencies
-$(OZDIR).module: h.modhead
+$(OZDIR).module: h.modhead h.socketstate
+$(OZDIR).socketstate: h.socketstate
 
 # Export rules
 # For any files you export with EXPORTS you may need to include an

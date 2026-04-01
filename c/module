@@ -9,6 +9,7 @@
 
 #include "kernel.h"
 #include "modhead.h"
+#include "socketstate.h"
 
 #define DEBUG
 
@@ -21,39 +22,23 @@
 
 /***************************************************************************
  * Function:     Mod_Init
- * Description:  Initialise the module, setting up vectors, callbacks and
- *               any other parts of the system necessary for the module to
- *               function.
- * Parameters:   tail        = pointer to command line (control terminated)
- *               podule_base = address of podule module was started from, or
- *                             NULL if none
- *               pw          = private word for module
- * On exit:      Return NULL for successful initialisation, or a pointer to
- *               an error block if the module could not start properly.
+ * Description:  Initialise the module
  **************************************************************************/
 _kernel_oserror *Mod_Init(const char *tail, int podule_base, void *pw)
 {
     dprintf("Module EasySocket initialised\n");
-    return NULL;
+    return socket_init();
 }
 
 
 /***************************************************************************
  * Function:     Mod_Final
- * Description:  Finalise the module, shutting down any systems necessary,
- *               freeing vectors and releasing workspace
- * Parameters:   fatal       = fatality indicator; 1 if fatal, 0 if
- *                             reinitialising
- *               podule_base = address of podule module was started from, or
- *                             NULL if none
- *               pw          = private word for module
- * On exit:      Return 0 for successful finalisation, or a pointer to an
- *               error block if module was not shutdown properly.
+ * Description:  Finalise the module
  **************************************************************************/
 _kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
 {
     dprintf("Module EasySocket dying\n");
-    return NULL;
+    return socket_final();
 }
 
 
@@ -63,10 +48,38 @@ _kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
  **************************************************************************/
 _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 {
+    _kernel_oserror *err = NULL;
+
     switch (number) {
         case ESocket_ConnectToHost - ESocket_00:
+        {
+            const char *hostname = (const char *)r->r[0];
+            int port = r->r[1];
+            int handle;
+            err = socket_connect(hostname, port, &handle);
+            if (!err) {
+                r->r[0] = handle;
+            }
+            return err;
+        }
+
         case ESocket_CheckState - ESocket_00:
+        {
+            int handle = r->r[0];
+            int state;
+            err = socket_get_state(handle, &state);
+            if (!err) {
+                r->r[0] = state;
+            }
+            return err;
+        }
+
         case ESocket_Forget - ESocket_00:
+        {
+            int handle = r->r[0];
+            return socket_forget(handle);
+        }
+
         case ESocket_SendLine - ESocket_00:
         case ESocket_ReadLine - ESocket_00:
         case ESocket_SendData - ESocket_00:

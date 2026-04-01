@@ -1,0 +1,10 @@
+REM Test ESocket_ConnectToHost
+SYS "ESocket_ConnectToHost", "127.0.0.1", 80 TO handle% ; flags%
+IF flags% AND 1 THEN
+  PRINT "Error: ";$handle%+4
+ELSE
+  PRINT "Connected! Handle: ";handle%
+  SYS "ESocket_Forget", handle%
+  PRINT "Disconnected."
+ENDIF
+END
