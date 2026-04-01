@@ -1,0 +1,103 @@
+/*******************************************************************
+ * File:        module
+ * Purpose:     EasySocket module interface
+ * Author:      YOUR NAME
+ ******************************************************************/
+
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "kernel.h"
+#include "modhead.h"
+
+#define DEBUG
+
+#ifdef DEBUG
+#define dprintf if (1) printf
+#else
+#define dprintf if (0) printf
+#endif
+
+
+/***************************************************************************
+ * Function:     Mod_Init
+ * Description:  Initialise the module, setting up vectors, callbacks and
+ *               any other parts of the system necessary for the module to
+ *               function.
+ * Parameters:   tail        = pointer to command line (control terminated)
+ *               podule_base = address of podule module was started from, or
+ *                             NULL if none
+ *               pw          = private word for module
+ * On exit:      Return NULL for successful initialisation, or a pointer to
+ *               an error block if the module could not start properly.
+ **************************************************************************/
+_kernel_oserror *Mod_Init(const char *tail, int podule_base, void *pw)
+{
+    dprintf("Module EasySocket initialised\n");
+    return NULL;
+}
+
+
+/***************************************************************************
+ * Function:     Mod_Final
+ * Description:  Finalise the module, shutting down any systems necessary,
+ *               freeing vectors and releasing workspace
+ * Parameters:   fatal       = fatality indicator; 1 if fatal, 0 if
+ *                             reinitialising
+ *               podule_base = address of podule module was started from, or
+ *                             NULL if none
+ *               pw          = private word for module
+ * On exit:      Return 0 for successful finalisation, or a pointer to an
+ *               error block if module was not shutdown properly.
+ **************************************************************************/
+_kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
+{
+    dprintf("Module EasySocket dying\n");
+    return NULL;
+}
+
+
+/***************************************************************************
+ * Function:     Mod_SWI
+ * Description:  Handle SWI calls for the module.
+ **************************************************************************/
+_kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
+{
+    switch (number) {
+        case ESocket_ConnectToHost - ESocket_00:
+        case ESocket_CheckState - ESocket_00:
+        case ESocket_Forget - ESocket_00:
+        case ESocket_SendLine - ESocket_00:
+        case ESocket_ReadLine - ESocket_00:
+        case ESocket_SendData - ESocket_00:
+        case ESocket_ReadData - ESocket_00:
+        case ESocket_Closed - ESocket_00:
+        case ESocket_Listen - ESocket_00:
+        case ESocket_Accept - ESocket_00:
+        case ESocket_ConnectionName - ESocket_00:
+        case ESocket_Monitor - ESocket_00:
+        case ESocket_ResetMonitor - ESocket_00:
+            return NULL; // Stub
+
+        default:
+            return error_BAD_SWI;
+    }
+}
+
+
+/***************************************************************************
+ * Function:     Mod_Command
+ * Description:  Handle Star commands for the module.
+ **************************************************************************/
+_kernel_oserror *Mod_Command(const char *arg_string, int argc, int number, void *pw)
+{
+    switch (number) {
+        case CMD_ESockets:
+            printf("Active socket connections: (none)\n");
+            break;
+        case CMD_EMonitors:
+            printf("Active socket monitors: (none)\n");
+            break;
+    }
+    return NULL;
+}

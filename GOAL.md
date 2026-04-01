@@ -17,4 +17,3 @@ Build the module after each feature is added.
 After every commit push the change.
 
 If there's something you don't know, but can stub, do so. If you need input from the user, ask a question.
-
