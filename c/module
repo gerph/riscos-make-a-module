@@ -60,6 +60,7 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
     int closed;
     socket_handle_t *new_h;
     char *name;
+    socket_monitor_t *m;
 
     switch (number) {
         case ESocket_ConnectToHost - ESocket_00:
@@ -182,8 +183,32 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
         }
 
         case ESocket_Monitor - ESocket_00:
+        {
+            if (r->r[0] != 0) {
+                // Not supported reason code
+                static _kernel_oserror err_bad_op = {0, "Unknown operation passed to ESocket_Monitor"};
+                return &err_bad_op;
+            }
+            err = socket_validate(r->r[1], &h);
+            if (err) return err;
+            err = socket_monitor(h, &m);
+            if (!err) {
+                r->r[0] = (int)m;
+            }
+            return err;
+        }
+
         case ESocket_ResetMonitor - ESocket_00:
-            return NULL; // Stub
+        {
+            err = socket_monitor_validate(r->r[0], &m);
+            if (err) return err;
+            if (r->r[1] != 0) {
+                // Not supported reason code
+                static _kernel_oserror err_bad_op = {0, "Unknown operation passed to ESocket_ResetMonitor"};
+                return &err_bad_op;
+            }
+            return socket_reset_monitor(m);
+        }
 
         default:
             return error_BAD_SWI;
@@ -214,7 +239,7 @@ _kernel_oserror *Mod_Command(const char *arg_string, int argc, int number, void 
             socket_enumerate();
             break;
         case CMD_EMonitors:
-            printf("Active socket monitors: (none)\n");
+            socket_monitor_enumerate();
             break;
     }
     return NULL;

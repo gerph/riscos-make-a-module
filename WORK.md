@@ -25,5 +25,5 @@
 - [x] **Line Endings:** `ESocket_ReadLine` now handles `\r`, `\n`, and `\r\n`.
 - [x] **Error Handling:** Added specific error blocks for `Bad ESocket handle` and `Not connected`.
 - [x] **Service Handler:** Implemented `Service_WimpCloseDown` (&53) handler for cleanup.
-- [ ] **Monitoring:** `ESocket_Monitor` and `ESocket_ResetMonitor` are stubs.
+- [x] **Monitoring:** Implemented `ESocket_Monitor` and `ESocket_ResetMonitor` SWIs and `*EMonitors` command.
 - [x] **Hostname Resolution:** `ESocket_ConnectionName` returns the pointer to the `strdup`'d internal buffer.
