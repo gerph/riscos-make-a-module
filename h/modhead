@@ -11,8 +11,8 @@
 
 #define Module_Title		"EasySocket"
 #define Module_Help		"EasySocket"
-#define Module_VersionString	"0.01"
-#define Module_VersionNumber	1
+#define Module_VersionString	"1.16"
+#define Module_VersionNumber	116
 #ifndef Module_Date
 #define Module_Date		"02 Apr 2026"
 #endif
@@ -173,18 +173,26 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw);
 #undef XESocket_ResetMonitor
 #define ESocket_ResetMonitor      (0x0005800c)
 #define XESocket_ResetMonitor     (0x0007800c)
-#undef ESocket_DecodeState
-#undef XESocket_DecodeState
-#define ESocket_DecodeState       (0x0005800d)
-#define XESocket_DecodeState      (0x0007800d)
 #undef ESocket_OurAddress
 #undef XESocket_OurAddress
-#define ESocket_OurAddress        (0x0005800e)
-#define XESocket_OurAddress       (0x0007800e)
+#define ESocket_OurAddress        (0x0005800d)
+#define XESocket_OurAddress       (0x0007800d)
+#undef ESocket_DecodeState
+#undef XESocket_DecodeState
+#define ESocket_DecodeState       (0x0005800e)
+#define XESocket_DecodeState      (0x0007800e)
+#undef ESocket_TaskAssociation
+#undef XESocket_TaskAssociation
+#define ESocket_TaskAssociation   (0x0005800f)
+#define XESocket_TaskAssociation  (0x0007800f)
+#undef ESocket_ConnectToAddr
+#undef XESocket_ConnectToAddr
+#define ESocket_ConnectToAddr     (0x00058010)
+#define XESocket_ConnectToAddr    (0x00078010)
 #undef ESocket_TheirAddress
 #undef XESocket_TheirAddress
-#define ESocket_TheirAddress      (0x0005800f)
-#define XESocket_TheirAddress     (0x0007800f)
+#define ESocket_TheirAddress      (0x00058011)
+#define XESocket_TheirAddress     (0x00078011)
 
 /* Special error for 'SWI values out of range for this module' */
 #define error_BAD_SWI ((_kernel_oserror *) -1)
@@ -214,6 +222,28 @@ extern void Event_Entry(void);
  **************************************************************************/
 int Event_Handler(_kernel_swi_regs *r, void *pw);
 
+
+/***************************************************************************
+ * Function:     PostFilter_Entry
+ * Description:  Symbol for entry point to module - NOT a C function.
+ *               This name should be used as an argument to
+ *               OS_Claim/OS_Release as required, but should never be called
+ *               from C.
+ **************************************************************************/
+extern void PostFilter_Entry(void);
+
+
+/***************************************************************************
+ * Function:     PostFilter_Handler
+ * Description:  Generic handler function
+ * Parameters:   r  = pointer to register block on entry
+ *               pw = private word for module
+ * On exit:      Update r to alter return values
+ *               Return NULL to return with V clear
+ *               Return an error pointer to set V and r0
+ **************************************************************************/
+_kernel_oserror *PostFilter_Handler(_kernel_swi_regs *r, void *pw);
+
 /* Error base for this module */
 #define ERROR_BASE (0x00580000)
 /* Error messages embedded in the module header, based at &580000 */
@@ -221,21 +251,39 @@ int Event_Handler(_kernel_swi_regs *r, void *pw);
 /* Data is in the .rodata section, so is accessed directly */
 extern _kernel_oserror __err_Err_BadHandle; /* &580000 */
 extern _kernel_oserror __err_Err_NotConnected; /* &580001 */
+extern _kernel_oserror __err_Err_NotListening; /* &580002 */
+extern _kernel_oserror __err_Err_InvalidIP; /* &580003 */
+extern _kernel_oserror __err_Err_TooLow; /* &580004 */
 
 #define Err_BadHandle (&__err_Err_BadHandle)
 #define Err_NotConnected (&__err_Err_NotConnected)
+#define Err_NotListening (&__err_Err_NotListening)
+#define Err_InvalidIP (&__err_Err_InvalidIP)
+#define Err_TooLow (&__err_Err_TooLow)
 #elif defined(__GNUC__) /* RISC OS 32bit build with GCC */
-extern void __err_Err_BadHandle(void); /* &580002 */
-extern void __err_Err_NotConnected(void); /* &580003 */
+extern void __err_Err_BadHandle(void); /* &580005 */
+extern void __err_Err_NotConnected(void); /* &580006 */
+extern void __err_Err_NotListening(void); /* &580007 */
+extern void __err_Err_InvalidIP(void); /* &580008 */
+extern void __err_Err_TooLow(void); /* &580009 */
 
 #define Err_BadHandle ((_kernel_oserror*)(void *)__err_Err_BadHandle)
 #define Err_NotConnected ((_kernel_oserror*)(void *)__err_Err_NotConnected)
+#define Err_NotListening ((_kernel_oserror*)(void *)__err_Err_NotListening)
+#define Err_InvalidIP ((_kernel_oserror*)(void *)__err_Err_InvalidIP)
+#define Err_TooLow ((_kernel_oserror*)(void *)__err_Err_TooLow)
 #else /* Norcroft */
-extern void __err_Err_BadHandle(void); /* &580004 */
-extern void __err_Err_NotConnected(void); /* &580005 */
+extern void __err_Err_BadHandle(void); /* &58000a */
+extern void __err_Err_NotConnected(void); /* &58000b */
+extern void __err_Err_NotListening(void); /* &58000c */
+extern void __err_Err_InvalidIP(void); /* &58000d */
+extern void __err_Err_TooLow(void); /* &58000e */
 
 #define Err_BadHandle ((_kernel_oserror*)(int)__err_Err_BadHandle)
 #define Err_NotConnected ((_kernel_oserror*)(int)__err_Err_NotConnected)
+#define Err_NotListening ((_kernel_oserror*)(int)__err_Err_NotListening)
+#define Err_InvalidIP ((_kernel_oserror*)(int)__err_Err_InvalidIP)
+#define Err_TooLow ((_kernel_oserror*)(int)__err_Err_TooLow)
 #endif
 
 #ifdef __cplusplus

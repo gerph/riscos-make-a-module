@@ -29,17 +29,27 @@ The following SWIs are implemented (chunk &58000):
 | &0C | `ESocket_ResetMonitor` | Resets a monitor (R0: monitor, R1: newaddress=0). Returns pollword address in R0. |
 | &0D | `ESocket_DecodeState` | NEW (from docs): Converts state number to error string. |
 | &0E | `ESocket_OurAddress` | NEW (from docs): Returns local address and port (R0: handle). Exit R0:IP, R1:port. |
-| &0F | `ESocket_TheirAddress` | NEW (from docs): Returns remote address and port (R0: handle). Exit R0:IP, R1:port. |
+| &0F | `ESocket_TheirAddress` | Returns remote address and port (R0: handle). Exit R0:IP, R1:port. |
+| &10 | `ESocket_TaskAssociation` | NEW: Associates/Dissociates task (R0: handle, R1: 1=Assoc, 0=Dissoc). |
+| &11 | `ESocket_ConnectToAddr` | NEW: Connects to IP (R0: IP, R1: port). |
 
-## Implementation Details (from Disassembly & Docs)
-- **Initialisation:** Claims `EventV` (16), enables events 2 and 19.
-- **Service Handler:** `Service_WimpCloseDown` (&53) cleans up sockets/monitors for the exiting task.
-- **Handle Validation:** Uses a magic number and linked list.
-- **Non-blocking:** Sockets are set to non-blocking mode. `ConnectToHost` starts the process, `CheckState` polls for completion.
-- **Monitors:** Provide a pollword for use with `OS_UpCall 6`, triggering when data is available or socket closes.
-- **Memory Management:** The original module notoriously failed to free memory on `RMKill`. The new C implementation must fix this.
-- **Buffering:** 4096-byte internal buffer used for line handling to prevent RMA fragmentation.
+## Implementation Details (from Source)
+- **Magic Numbers:** Socket Magic = `&FEEF1EF0`, Monitor Magic = `&BEEFFEED`.
+- **Initialisation:** Claims `EventV` (16), enables events 2 and 19. Also installs a Wimp PostFilter to trap `TaskWindow_Input` (&808C0) messages.
+- **Domain IDs:** Uses the value at `[0, #&FF8]` as a "domain ID" to track which task owns a socket/monitor.
+- **Monitors:**
+  - Type 0: Triggers when:
+    - `Event_Internet` (19) subreason 1 occurs for the socket.
+    - `Event_Internet` (19) subreason 3 occurs for the socket (closed).
+    - `Event_BufferEntering` (2) subreason 0 occurs (keyboard).
+    - `TaskWindow_Input` message is received via PostFilter.
+- **State Machine:**
+  - `checksockets` runs during `CheckState` and other SWIs.
+  - Handles `Resolver_GetHost` results (pending code 36).
+  - Uses `Socket_Select` (via `selectready`) to check for connection completion.
+- **Buffering:** Doubling buffer size (initial 256, max 32768).
+- **Cleanup:** `swi_forget` correctly closes socket handles and frees all associated memory (internal buffer, remote name string). Original module failed to clean up on `RMKill` by choice ("to dissuade you"), but our C version should be clean.
 
 ## Unclear Parts
-- **Event 2 (Character entering buffer):** Doc mentions "marks keyboard input" in TaskWindow programs. Still not 100% sure how it integrates with the socket pollword.
-- **SWI numbers beyond &0C:** Disassembly only showed up to &0C in the branch table, but docs mention `DecodeState`, `OurAddress`, and `TheirAddress`. They might have been added in later versions (v1.07, v1.16). I should check if I need to implement them or if they exist in the v1.03 binary.
+- **Event 2:** The source confirms it triggers all type 0 monitors on any keyboard activity. This is quite broad but matches the "TaskWindow" use case.
+- **PostFilter:** Implementation of Wimp filters in C modules requires a veneer and specific setup in CMHG.

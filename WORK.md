@@ -31,3 +31,11 @@
 - [x] **Accept Flags:** Added "Close listener" flag support.
 - [x] **Closed Flags:** Added "Ignore buffer" flag support.
 - [x] **Monitor Integration:** Monitors trigger based on socket events (pollword logic).
+- [x] **SWI TaskAssociation (&10):** Implemented manual task association control.
+- [x] **SWI ConnectToAddr (&11):** Implemented direct IP connection.
+- [x] **IP Literal Support:** `ConnectToHost` now handles `[1.2.3.4]` format.
+- [x] **Wimp PostFilter:** Implemented TaskWindow input trapping via Post-Filter.
+- [x] **State Machine Refinement:** Implemented `checksockets` logic for async connection tracking.
+- [x] **Keyboard Event (2):** Monitor type 0 triggers on Event 2.
+- [x] **Cleanup Refinement:** `swi_forget` calls `Shutdown` then `Close`.
+

@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -14,6 +15,8 @@
 #include "swis.h"
 #include "modhead.h"
 #include "socketstate.h"
+
+#define Resolver_GetHost 0x66001
 
 static socket_handle_t *socket_list = NULL;
 static socket_monitor_t *monitor_list = NULL;
@@ -26,6 +29,12 @@ static char *socket_strdup(const char *s)
     return new_s;
 }
 
+static unsigned int get_current_task(void)
+{
+    unsigned int *ptr = (unsigned int *)0x0;
+    return ptr[0xff8/4];
+}
+
 _kernel_oserror *socket_init(void)
 {
     socket_list = NULL;
@@ -35,7 +44,8 @@ _kernel_oserror *socket_init(void)
 
 static void socket_free(socket_handle_t *h)
 {
-    socket_monitor_t **mcurr = &monitor_list;
+    socket_monitor_t **mcurr;
+    mcurr = &monitor_list;
     while (*mcurr) {
         if ((*mcurr)->handle == h) {
             socket_monitor_t *to_free = *mcurr;
@@ -45,7 +55,10 @@ static void socket_free(socket_handle_t *h)
             mcurr = &((*mcurr)->next);
         }
     }
-    if (h->socket_fd != -1) close(h->socket_fd);
+    if (h->socket_fd != -1) {
+        shutdown(h->socket_fd, 2);
+        close(h->socket_fd);
+    }
     if (h->remote_name) free(h->remote_name);
     if (h->buffer) free(h->buffer);
     free(h);
@@ -77,6 +90,22 @@ _kernel_oserror *socket_validate(int handle, socket_handle_t **out)
     return Err_BadHandle;
 }
 
+_kernel_oserror *socket_monitor_validate(int monitor, socket_monitor_t **out)
+{
+    socket_monitor_t *m = monitor_list;
+    while (m) {
+        if ((int)m == monitor) {
+            if (m->magic == MONITOR_MAGIC) {
+                *out = m;
+                return NULL;
+            }
+            break;
+        }
+        m = m->next;
+    }
+    return Err_BadHandle;
+}
+
 static socket_handle_t *socket_alloc(void)
 {
     socket_handle_t *h = malloc(sizeof(socket_handle_t));
@@ -85,87 +114,183 @@ static socket_handle_t *socket_alloc(void)
         memset(h, 0, sizeof(socket_handle_t));
         h->magic = SOCKET_MAGIC;
         h->socket_fd = -1;
-        h->buffer_size = 4096;
+        h->buffer_size = 256; // InitialBuffer
         h->buffer = malloc(h->buffer_size);
         if (!h->buffer) {
             free(h);
             return NULL;
         }
-        h->task_handle = 0;
-        regs.r[0] = 0;
-        if (!_swix(Wimp_ReadSysInfo, _INR(0,0)|_OUT(0), &regs)) {
-            h->task_handle = regs.r[0];
-        }
+        h->task_handle = get_current_task();
         h->next = socket_list;
         socket_list = h;
     }
     return h;
 }
 
+static _kernel_oserror *parse_ip_literal(const char *hostname, unsigned int *ip)
+{
+    if (hostname[0] == '[') {
+        char *end;
+        unsigned int a, b, c, d;
+        const char *p = hostname + 1;
+        a = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
+        b = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
+        c = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
+        d = strtoul(p, &end, 10); if (*end != ']') return Err_BadHandle;
+        *ip = (a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16) | ((d & 0xFF) << 24);
+        return NULL;
+    }
+    return Err_BadHandle;
+}
+
 _kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t **handle)
 {
-    struct hostent *hp;
-    struct sockaddr_in sin;
-    int s;
-    socket_handle_t *h;
-    int on = 1;
-    static _kernel_oserror err_host = {0, "Host not found"};
-    static _kernel_oserror err_sock = {0, "Socket creation failed"};
-    static _kernel_oserror err_conn = {0, "Connection failed"};
-    static _kernel_oserror err_mem  = {0, "Out of memory"};
-
-    hp = gethostbyname(hostname);
-    if (hp == NULL) return &err_host;
-
-    s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s < 0) return &err_sock;
-
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-    memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
-
-    if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-        if (errno != EINPROGRESS) {
-            close(s);
-            return &err_conn;
-        }
-    }
-
-    ioctl(s, FIONBIO, &on);
-
-    h = socket_alloc();
+    socket_handle_t *h = socket_alloc();
     if (!h) {
-        close(s);
+        static _kernel_oserror err_mem = {0, "Out of memory"};
         return &err_mem;
     }
 
-    h->socket_fd = s;
     h->remote_name = socket_strdup(hostname);
     h->port = port;
-    h->state = 4; // Connected
+    h->state = 1; // S_Lookup
     *handle = h;
+
+    socket_check_all();
     return NULL;
+}
+
+_kernel_oserror *socket_connect_addr(unsigned int ip, int port, socket_handle_t **handle)
+{
+    char buf[32];
+    sprintf(buf, "[%u.%u.%u.%u]", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24) & 0xFF);
+    return socket_connect(buf, port, handle);
+}
+
+void socket_check_all(void)
+{
+    socket_handle_t *h = socket_list;
+    while (h) {
+        if (h->state == 1) { // S_Lookup
+            unsigned int ip;
+            if (parse_ip_literal(h->remote_name, &ip) == NULL) {
+                // IP literal
+                struct sockaddr_in sin;
+                int s = socket(AF_INET, SOCK_STREAM, 0);
+                if (s >= 0) {
+                    int on = 1;
+                    h->socket_fd = s;
+                    ioctl(s, FIONBIO, &on);
+                    ioctl(s, FIOASYNC, &on);
+                    memset(&sin, 0, sizeof(sin));
+                    sin.sin_family = AF_INET;
+                    sin.sin_port = htons(h->port);
+                    sin.sin_addr.s_addr = ip;
+                    if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+                        if (errno == EINPROGRESS) h->state = 2; // S_Connecting
+                        else h->state = -5; // S_Unreachable
+                    } else {
+                        h->state = 4; // S_Connected
+                    }
+                } else {
+                    h->state = -4; // S_NoSockets
+                }
+            } else {
+                // DNS Lookup
+                _kernel_swi_regs regs;
+                regs.r[0] = (int)h->remote_name;
+                if (!_swix(Resolver_GetHost, _INR(0,0)|_OUTR(0,1), &regs)) {
+                    if (regs.r[0] == 36) { // Pending
+                        // Still lookup
+                    } else if (regs.r[1] != 0) {
+                        // Success
+                        struct hostent *hp = (struct hostent *)regs.r[1];
+                        struct sockaddr_in sin;
+                        int s = socket(AF_INET, SOCK_STREAM, 0);
+                        if (s >= 0) {
+                            int on = 1;
+                            h->socket_fd = s;
+                            ioctl(s, FIONBIO, &on);
+                            ioctl(s, FIOASYNC, &on);
+                            memset(&sin, 0, sizeof(sin));
+                            sin.sin_family = AF_INET;
+                            sin.sin_port = htons(h->port);
+                            memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
+                            if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+                                if (errno == EINPROGRESS) h->state = 2; // S_Connecting
+                                else h->state = -5; // S_Unreachable
+                            } else {
+                                h->state = 4; // S_Connected
+                            }
+                        } else {
+                            h->state = -4; // S_NoSockets
+                        }
+                    } else {
+                        h->state = -1; // S_NoSuchHost
+                    }
+                } else {
+                    h->state = -3; // S_ResolveError
+                }
+            }
+        } else if (h->state == 2) { // S_Connecting
+            // Check if connected
+            struct fd_set write_fds;
+            struct timeval tv;
+            int error = 0;
+            int len = sizeof(error);
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+            FD_ZERO(&write_fds);
+            FD_SET(h->socket_fd, &write_fds);
+            if (select(h->socket_fd + 1, NULL, &write_fds, NULL, &tv) > 0) {
+                if (getsockopt(h->socket_fd, SOL_SOCKET, SO_ERROR, &error, &len) == 0) {
+                    if (error == 0) h->state = 4; // S_Connected
+                    else if (error == ECONNREFUSED) h->state = -6; // S_NotListening
+                    else h->state = -5; // S_Unreachable
+                } else {
+                    h->state = -5;
+                }
+            }
+        }
+        h = h->next;
+    }
 }
 
 _kernel_oserror *socket_get_state(socket_handle_t *h, int *state)
 {
+    socket_check_all();
     *state = h->state;
     return NULL;
 }
 
-_kernel_oserror *socket_forget(socket_handle_t *h)
+_kernel_oserror *socket_forget(void *ptr)
 {
-    socket_handle_t **curr = &socket_list;
+    socket_handle_t **curr;
+    socket_monitor_t **mcurr;
+    
+    curr = &socket_list;
     while (*curr) {
-        if (*curr == h) {
-            *curr = h->next;
-            socket_free(h);
+        if (*curr == ptr) {
+            socket_handle_t *to_free = *curr;
+            *curr = to_free->next;
+            socket_free(to_free);
             return NULL;
         }
         curr = &((*curr)->next);
     }
-    return NULL;
+
+    mcurr = &monitor_list;
+    while (*mcurr) {
+        if (*mcurr == ptr) {
+            socket_monitor_t *to_free = *mcurr;
+            *mcurr = to_free->next;
+            free(to_free);
+            return NULL;
+        }
+        mcurr = &((*mcurr)->next);
+    }
+
+    return Err_BadHandle;
 }
 
 static void update_monitors(socket_handle_t *h, int sent, int recv)
@@ -188,6 +313,8 @@ _kernel_oserror *socket_send_line(socket_handle_t *h, const char *line, int flag
     int len = 0;
     char cr = 13;
     char lf = 10;
+
+    if (h->state != 4) return Err_NotConnected;
 
     if (flags & 4) { // 13-terminated
         while (line[len] != 13) len++;
@@ -221,7 +348,8 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
     int term_type = flags & 3;
     int return_len;
     int strip;
-    static _kernel_oserror err_mem = {0, "Out of memory extending buffer"};
+
+    if (h->state != 4) return Err_NotConnected;
 
     // Search in existing buffer
     for (i = 0; i < h->buffer_len; i++) {
@@ -255,13 +383,6 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
     }
 
     if (!found) {
-        if (h->buffer_len == h->buffer_size) {
-            int new_size = h->buffer_size * 2;
-            char *new_buf = realloc(h->buffer, new_size);
-            if (!new_buf) return &err_mem;
-            h->buffer = new_buf;
-            h->buffer_size = new_size;
-        }
         n = recv(s, h->buffer + h->buffer_len, h->buffer_size - h->buffer_len, 0);
         if (n > 0) {
             h->buffer_len += n;
@@ -297,6 +418,14 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
                 if (match) break;
             }
         }
+        if (!found && h->buffer_len == h->buffer_size && h->buffer_size < 32768) {
+            int new_size = h->buffer_size * 2;
+            char *new_buf = realloc(h->buffer, new_size);
+            if (new_buf) {
+                h->buffer = new_buf;
+                h->buffer_size = new_size;
+            }
+        }
     }
 
     if (found) {
@@ -305,20 +434,15 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
             if (h->buffer[found-2] == '\r' && h->buffer[found-1] == '\n') strip = 2;
             else strip = 1;
         }
-        
         return_len = found - strip;
-
         if (found > max) {
-            *size = found; // Required length
+            *size = found;
             return NULL;
         }
-
         memcpy(buffer, h->buffer, return_len);
         if (flags & 4) buffer[return_len] = 13;
         else buffer[return_len] = 0;
-
         if (flags & 8) {
-            // Process deletes (8 and 127)
             int src, dst = 0;
             for (src = 0; src < return_len; src++) {
                 if (buffer[src] == 8 || buffer[src] == 127) {
@@ -331,20 +455,20 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
             if (flags & 4) buffer[return_len] = 13;
             else buffer[return_len] = 0;
         }
-
         memmove(h->buffer, h->buffer + found, h->buffer_len - found);
         h->buffer_len -= found;
         *size = return_len;
         return NULL;
     }
-
     *size = 0;
     return NULL;
 }
 
 _kernel_oserror *socket_send_data(socket_handle_t *h, const void *data, int *size)
 {
-    int n = send(h->socket_fd, data, *size, 0);
+    int n;
+    if (h->state != 4) return Err_NotConnected;
+    n = send(h->socket_fd, data, *size, 0);
     if (n < 0) {
         static _kernel_oserror err = {0, "Send data failed"};
         return &err;
@@ -356,19 +480,15 @@ _kernel_oserror *socket_send_data(socket_handle_t *h, const void *data, int *siz
 
 _kernel_oserror *socket_read_data(socket_handle_t *h, void *buffer, int *size)
 {
-    int n;
-    int avail;
-    int s_avail;
-
+    int n, avail, s_avail;
+    if (h->state != 4) return Err_NotConnected;
     if (buffer == NULL) {
-        // Return available length
         avail = h->buffer_len;
         s_avail = 0;
         ioctl(h->socket_fd, FIONREAD, &s_avail);
         *size = avail + s_avail;
         return NULL;
     }
-
     if (h->buffer_len > 0) {
         int to_copy = (*size < h->buffer_len) ? *size : h->buffer_len;
         memcpy(buffer, h->buffer, to_copy);
@@ -391,7 +511,10 @@ _kernel_oserror *socket_closed(socket_handle_t *h, int flags, int *closed)
 {
     char dummy;
     int n;
-
+    if (h->state != 4) {
+        *closed = 1;
+        return NULL;
+    }
     if (!(flags & 1) && h->buffer_len > 0) {
         *closed = 0;
         return NULL;
@@ -432,6 +555,7 @@ _kernel_oserror *socket_listen(int port, socket_handle_t **handle)
     }
 
     ioctl(s, FIONBIO, &on);
+    ioctl(s, FIOASYNC, &on);
 
     h = socket_alloc();
     if (!h) {
@@ -463,6 +587,11 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, int flags, socket_handle_t *
     static _kernel_oserror err_accp = {0, "Accept failed"};
     static _kernel_oserror err_mem  = {0, "Out of memory"};
 
+    if (lh->state != 3) {
+        static _kernel_oserror err_nl = {0, "ESocket is not listening"};
+        return &err_nl;
+    }
+
     s = accept(lh->socket_fd, (struct sockaddr *)&sin, &len);
     if (s < 0) {
         if (errno == EWOULDBLOCK) {
@@ -473,6 +602,7 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, int flags, socket_handle_t *
     }
 
     ioctl(s, FIONBIO, &on);
+    ioctl(s, FIOASYNC, &on);
 
     h = socket_alloc();
     if (!h) {
@@ -495,13 +625,17 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, int flags, socket_handle_t *
 
 _kernel_oserror *socket_connection_name(socket_handle_t *h, char **name)
 {
+    socket_check_all();
     *name = h->remote_name;
     return NULL;
 }
 
 void socket_close_all(unsigned int task_handle)
 {
-    socket_handle_t **curr = &socket_list;
+    socket_handle_t **curr;
+    socket_monitor_t **mcurr;
+    
+    curr = &socket_list;
     while (*curr) {
         if (task_handle == 0 || (*curr)->task_handle == task_handle) {
             socket_handle_t *to_free = *curr;
@@ -509,6 +643,16 @@ void socket_close_all(unsigned int task_handle)
             socket_free(to_free);
         } else {
             curr = &((*curr)->next);
+        }
+    }
+    mcurr = &monitor_list;
+    while (*mcurr) {
+        if (task_handle == 0 || (*mcurr)->task_handle == task_handle) {
+            socket_monitor_t *to_free = *mcurr;
+            *mcurr = to_free->next;
+            free(to_free);
+        } else {
+            mcurr = &((*mcurr)->next);
         }
     }
 }
@@ -537,45 +681,32 @@ _kernel_oserror *socket_monitor(socket_handle_t *h, socket_monitor_t **monitor)
     memset(m, 0, sizeof(socket_monitor_t));
     m->magic = MONITOR_MAGIC;
     m->handle = h;
+    m->task_handle = get_current_task();
     m->next = monitor_list;
     monitor_list = m;
     *monitor = m;
     return NULL;
 }
 
-_kernel_oserror *socket_reset_monitor(socket_monitor_t *m)
+_kernel_oserror *socket_reset_monitor(socket_monitor_t *m, unsigned int *new_addr, unsigned int **poll_addr)
 {
-    m->data_sent = 0;
-    m->data_recv = 0;
     m->pollword = 0;
-    return NULL;
-}
-
-_kernel_oserror *socket_monitor_validate(int monitor, socket_monitor_t **out)
-{
-    socket_monitor_t *m = monitor_list;
-    while (m) {
-        if ((int)m == monitor) {
-            if (m->magic == MONITOR_MAGIC) {
-                *out = m;
-                return NULL;
-            }
-            break;
-        }
-        m = m->next;
+    if (new_addr) {
+        // Not implemented: original allowed setting custom pollword address
     }
-    return Err_BadHandle;
+    *poll_addr = (unsigned int *)&(m->pollword);
+    return NULL;
 }
 
 void socket_monitor_enumerate(void)
 {
     socket_monitor_t *m = monitor_list;
     int count = 0;
-    printf("Monitor     Handle      Sent      Recv      PollAddr\n");
-    printf("----------  ----------  --------  --------  --------\n");
+    printf("Monitor     Handle      Sent      Recv      PollAddr  Task\n");
+    printf("----------  ----------  --------  --------  --------  ----\n");
     while (m) {
-        printf("%08X  %08X  %8u  %8u  %08X\n", (unsigned int)m, (unsigned int)m->handle, 
-               m->data_sent, m->data_recv, (unsigned int)&(m->pollword));
+        printf("%08X  %08X  %8u  %8u  %08X  %08X\n", (unsigned int)m, (unsigned int)m->handle, 
+               m->data_sent, m->data_recv, (unsigned int)&(m->pollword), m->task_handle);
         count++;
         m = m->next;
     }
@@ -585,44 +716,52 @@ void socket_monitor_enumerate(void)
 int socket_event_handler(_kernel_swi_regs *r, void *pw)
 {
     int event = r->r[0];
-    int subreason = r->r[1];
-    int s = r->r[2];
-
-    if (event == 19 && subreason == 1) { // Event_Internet, socket has data
-        socket_handle_t *h = socket_list;
-        while (h) {
-            if (h->socket_fd == s) {
-                // Set pollwords for associated monitors
-                socket_monitor_t *m = monitor_list;
-                while (m) {
-                    if (m->handle == h) {
-                        m->pollword = 1;
-                    }
-                    m = m->next;
+    if (event == 19) { // Event_Internet
+        int subreason = r->r[1];
+        int s = r->r[2];
+        if (subreason == 1 || subreason == 3) {
+            socket_handle_t *h = socket_list;
+            while (h) {
+                if (h->socket_fd == s) {
+                    socket_trigger_monitors((unsigned int)h);
+                    break;
                 }
-                break;
+                h = h->next;
             }
-            h = h->next;
         }
+    } else if (event == 2) { // Buffer entering (keyboard)
+        socket_trigger_monitors(0);
     }
     return 1; // Pass on
+}
+
+void socket_trigger_monitors(int handle)
+{
+    socket_monitor_t *m = monitor_list;
+    while (m) {
+        if (handle == 0 || (unsigned int)m->handle == (unsigned int)handle) {
+            m->pollword = 1;
+        }
+        m = m->next;
+    }
 }
 
 const char *socket_decode_state(int state)
 {
     switch (state) {
-        case 1: return "Looking up host";
-        case 2: return "Connecting";
+        case 1: return "Looking up address";
+        case 2: return "Connecting to host";
+        case 3: return "Listening for connection";
         case 4: return "Connected";
-        case -1: return "Host lookup failed";
-        case -2: return "Resolver failure";
-        case -3: return "Resolver error";
+        case -1: return "Host lookup failed (doesn't exist?)";
+        case -2: return "Resolve failed (no response)";
+        case -3: return "Resolver error (not running?)";
         case -4: return "No sockets left";
-        case -5: return "Host unreachable";
-        case -6: return "Connection refused";
-        case -7: return "Port in use";
-        case -8: return "No connection waiting";
-        default: return "Unknown state";
+        case -5: return "Host is unreachable (network down?)";
+        case -6: return "Connection refused (not listening at destination)";
+        case -7: return "Could not bind to local port";
+        case -8: return "Nobody connected to socket";
+        default: return "*** Unknown state ***";
     }
 }
 
@@ -631,9 +770,9 @@ _kernel_oserror *socket_get_address(socket_handle_t *h, int remote, unsigned int
     struct sockaddr_in sin;
     int len = sizeof(sin);
     int res;
+    if (h->state != 4 && h->state != 3) return Err_BadHandle;
     if (remote) res = getpeername(h->socket_fd, (struct sockaddr *)&sin, &len);
     else res = getsockname(h->socket_fd, (struct sockaddr *)&sin, &len);
-    
     if (res < 0) {
         static _kernel_oserror err = {0, "Failed to get address"};
         return &err;
@@ -641,4 +780,19 @@ _kernel_oserror *socket_get_address(socket_handle_t *h, int remote, unsigned int
     *ip = sin.sin_addr.s_addr;
     *port = ntohs(sin.sin_port);
     return NULL;
+}
+
+_kernel_oserror *socket_task_association(void *ptr, int associate)
+{
+    socket_handle_t *h;
+    socket_monitor_t *m;
+    if (socket_validate((int)ptr, &h) == NULL) {
+        h->task_handle = associate ? get_current_task() : 0;
+        return NULL;
+    }
+    if (socket_monitor_validate((int)ptr, &m) == NULL) {
+        m->task_handle = associate ? get_current_task() : 0;
+        return NULL;
+    }
+    return Err_BadHandle;
 }

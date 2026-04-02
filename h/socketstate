@@ -5,8 +5,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define SOCKET_MAGIC 0x58000958
-#define MONITOR_MAGIC 0x4D4F4E49
+#define SOCKET_MAGIC  0xFEEF1EF0
+#define MONITOR_MAGIC 0xBEEFFEED
 
 typedef struct socket_handle {
     struct socket_handle *next;
@@ -28,6 +28,7 @@ typedef struct socket_monitor {
     unsigned int data_sent;
     unsigned int data_recv;
     volatile unsigned int pollword;
+    unsigned int task_handle;
 } socket_monitor_t;
 
 _kernel_oserror *socket_validate(int handle, socket_handle_t **out);
@@ -36,8 +37,9 @@ _kernel_oserror *socket_monitor_validate(int monitor, socket_monitor_t **out);
 _kernel_oserror *socket_init(void);
 _kernel_oserror *socket_final(void);
 _kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t **handle);
+_kernel_oserror *socket_connect_addr(unsigned int ip, int port, socket_handle_t **handle);
 _kernel_oserror *socket_get_state(socket_handle_t *handle, int *state);
-_kernel_oserror *socket_forget(socket_handle_t *handle);
+_kernel_oserror *socket_forget(void *ptr);
 _kernel_oserror *socket_send_line(socket_handle_t *handle, const char *line, int flags);
 _kernel_oserror *socket_read_line(socket_handle_t *handle, char *buffer, int *size, int flags);
 _kernel_oserror *socket_send_data(socket_handle_t *handle, const void *data, int *size);
@@ -50,12 +52,17 @@ void socket_enumerate(void);
 void socket_close_all(unsigned int task_handle);
 
 _kernel_oserror *socket_monitor(socket_handle_t *handle, socket_monitor_t **monitor);
-_kernel_oserror *socket_reset_monitor(socket_monitor_t *monitor);
+_kernel_oserror *socket_reset_monitor(socket_monitor_t *monitor, unsigned int *new_addr, unsigned int **poll_addr);
 void socket_monitor_enumerate(void);
 
 int socket_event_handler(_kernel_swi_regs *r, void *pw);
 
 const char *socket_decode_state(int state);
 _kernel_oserror *socket_get_address(socket_handle_t *h, int remote, unsigned int *ip, int *port);
+
+_kernel_oserror *socket_task_association(void *ptr, int associate);
+
+void socket_check_all(void);
+void socket_trigger_monitors(int type);
 
 #endif
