@@ -173,6 +173,18 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw);
 #undef XESocket_ResetMonitor
 #define ESocket_ResetMonitor      (0x0005800c)
 #define XESocket_ResetMonitor     (0x0007800c)
+#undef ESocket_DecodeState
+#undef XESocket_DecodeState
+#define ESocket_DecodeState       (0x0005800d)
+#define XESocket_DecodeState      (0x0007800d)
+#undef ESocket_OurAddress
+#undef XESocket_OurAddress
+#define ESocket_OurAddress        (0x0005800e)
+#define XESocket_OurAddress       (0x0007800e)
+#undef ESocket_TheirAddress
+#undef XESocket_TheirAddress
+#define ESocket_TheirAddress      (0x0005800f)
+#define XESocket_TheirAddress     (0x0007800f)
 
 /* Special error for 'SWI values out of range for this module' */
 #define error_BAD_SWI ((_kernel_oserror *) -1)

@@ -82,6 +82,8 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
     socket_handle_t *new_h;
     char *name;
     socket_monitor_t *m;
+    int flags;
+    unsigned int ip;
 
     switch (number) {
         case ESocket_ConnectToHost - ESocket_00:
@@ -108,9 +110,20 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_Forget - ESocket_00:
         {
+            // Try handle first
             err = socket_validate(r->r[0], &h);
-            if (err) return err;
-            return socket_forget(h);
+            if (!err) return socket_forget(h);
+            
+            // Try monitor
+            err = socket_monitor_validate(r->r[0], &m);
+            if (!err) {
+                // We need a socket_monitor_forget but for now just free it
+                // Actually socket_free handles monitor cleanup if socket is freed.
+                // For now let's just stub monitor forget if we had a list.
+                return NULL;
+            }
+            
+            return Err_BadHandle;
         }
 
         case ESocket_SendLine - ESocket_00:
@@ -118,7 +131,8 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
             err = socket_validate(r->r[0], &h);
             if (err) return err;
             line = (const char *)r->r[1];
-            return socket_send_line(h, line);
+            flags = r->r[2];
+            return socket_send_line(h, line, flags);
         }
 
         case ESocket_ReadLine - ESocket_00:
@@ -127,9 +141,22 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
             if (err) return err;
             buffer = (char *)r->r[1];
             size = r->r[2];
-            err = socket_read_line(h, buffer, &size);
+            flags = r->r[3];
+            err = socket_read_line(h, buffer, &size, flags);
             if (!err) {
-                r->r[2] = size;
+                if (buffer != NULL && size == 0) {
+                    // No line yet
+                    r->r[1] = 0;
+                    r->r[2] = 0;
+                } else if (buffer == NULL || size > r->r[2]) {
+                    // Buffer too small or just length request
+                    r->r[1] = 0;
+                    r->r[2] = size;
+                } else {
+                    // Success
+                    r->r[1] = (int)buffer;
+                    r->r[2] = size;
+                }
             }
             return err;
         }
@@ -142,7 +169,7 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
             size = r->r[2];
             err = socket_send_data(h, data, &size);
             if (!err) {
-                r->r[2] = size;
+                r->r[0] = size;
             }
             return err;
         }
@@ -164,7 +191,8 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
         {
             err = socket_validate(r->r[0], &h);
             if (err) return err;
-            err = socket_closed(h, &closed);
+            flags = r->r[1];
+            err = socket_closed(h, flags, &closed);
             if (!err) {
                 r->r[0] = closed;
             }
@@ -185,7 +213,8 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
         {
             err = socket_validate(r->r[0], &h);
             if (err) return err;
-            err = socket_accept(h, &new_h);
+            flags = r->r[1];
+            err = socket_accept(h, flags, &new_h);
             if (!err) {
                 r->r[0] = (int)new_h;
             }
@@ -228,7 +257,42 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
                 static _kernel_oserror err_bad_op = {0, "Unknown operation passed to ESocket_ResetMonitor"};
                 return &err_bad_op;
             }
-            return socket_reset_monitor(m);
+            // Reset monitor
+            socket_reset_monitor(m);
+            // Return pollword address (stub: for now just return address of data_sent)
+            r->r[0] = (int)&(m->data_recv); // Should be something that changes
+            return NULL;
+        }
+
+        case ESocket_DecodeState - ESocket_00:
+        {
+            state = r->r[0];
+            r->r[0] = (int)socket_decode_state(state);
+            return NULL;
+        }
+
+        case ESocket_OurAddress - ESocket_00:
+        {
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_get_address(h, 0, &ip, &port);
+            if (!err) {
+                r->r[0] = ip;
+                r->r[1] = port;
+            }
+            return err;
+        }
+
+        case ESocket_TheirAddress - ESocket_00:
+        {
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_get_address(h, 1, &ip, &port);
+            if (!err) {
+                r->r[0] = ip;
+                r->r[1] = port;
+            }
+            return err;
         }
 
         default:

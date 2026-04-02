@@ -35,7 +35,8 @@ swi-decoding-table: ESocket,
                     ConnectToHost, CheckState, Forget,
                     SendLine, ReadLine, SendData, ReadData,
                     Closed, Listen, Accept, ConnectionName,
-                    Monitor, ResetMonitor
+                    Monitor, ResetMonitor, DecodeState,
+                    OurAddress, TheirAddress
 
 error-base: &580000
 

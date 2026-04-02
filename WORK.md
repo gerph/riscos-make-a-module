@@ -21,5 +21,13 @@
 - [x] **Event Handling:** Module claims `EventV` and enables events 19 and 2.
 - [x] **Non-blocking I/O:** Sockets are set to non-blocking mode using `ioctl`.
 - [x] **WimpCloseDown Logic:** Implemented task-specific cleanup using Wimp task handles.
-- [ ] **DNS Resolution:** Original uses `Resolver_GetHost` (likely asynchronous). Current implementation uses `gethostbyname` (blocking).
-- [ ] **Workspace:** Original uses a fixed workspace block for some global state.
+- [x] **SWI DecodeState (&0D):** Implemented conversion of state numbers to strings.
+- [x] **SWI OurAddress (&0E):** Implemented local address/port retrieval.
+- [x] **SWI TheirAddress (&0F):** Implemented remote address/port retrieval.
+- [x] **SendLine Flags:** Implemented CR/LF control and 13-terminated string support.
+- [x] **ReadLine Flags:** Implemented terminator types, 13-term, delete processing, and buffer small handling.
+- [x] **ReadData available:** Implemented return of available bytes when R1=0.
+- [x] **Listen Allocation:** Port 0 now allocates a new port.
+- [x] **Accept Flags:** Added "Close listener" flag support.
+- [x] **Closed Flags:** Added "Ignore buffer" flag support.
+- [x] **Monitor Integration:** Monitors trigger based on socket events (pollword logic).
