@@ -1,0 +1,1963 @@
+In   -
+Out  EasySocket
+Type Module
+Ver  1.16a
+Max  16k
+
+Define Workspace
+ Name      socket
+ Default   r11
+  `next    !  the next socket in the chain
+  `magic   !  a magical value
+  `socket  !  the socket handle
+  `addr    !  the address name
+  `port    !  the port number
+  `state   !  the state of the connection
+  `buffer  !  buffer for incoming data
+  `buflen  !  length of buffer
+  `datalen !  length of data in buffer
+  `domain  !  domainid marker
+
+ Name      monitor
+ Default   r10
+  `mon_next   !  the next monitor block
+  `mon_magic  !  another magical value
+  `pollptr    !  pointer to the pollword
+  `mon_domain !  domainid marker
+  `mon_type   !  the monitor type
+  `pollword   !  the pollword to modify when event
+  (
+  `mon_skt    !  the socket we're monitoring (type 0)
+  )
+
+ Name      module
+ Default   r12
+  `sockets  !  socket handles
+  `monitors !  monitor blocks (OS_Upcall)
+  `address  !4 address block
+  `hostname !32 space for a hostname (128 chars ok ?)
+End Workspace
+
+Define Module
+ Name      EasySocket
+ Author    Justin Fletcher
+ SWIs
+  Prefix   ESocket
+  Base     &51C00
+   0       ConnectToHost     swi_connecttohost
+   1       CheckState        swi_checkstate
+   2       Forget            swi_forget
+   3       SendLine          swi_sendline
+   4       ReadLine          swi_readline
+   5       SendData          swi_senddata
+   6       ReadData          swi_readdata
+   7       Closed            swi_closed
+   8       Listen            swi_listen
+   9       Accept            swi_accept
+   10      ConnectionName    swi_connectionname
+   11      Monitor           swi_monitor
+   12      ResetMonitor      swi_resetmonitor
+   13      OurAddress        swi_ouraddress
+   14      DecodeState       swi_decodestate
+   15      TaskAssociation   swi_association
+   16      ConnectToAddr     swi_connecttoaddr
+   17      TheirAddress      swi_theiraddress
+ End SWIs
+ Services
+  WimpCloseDown        svc_wimpclosedown ; to trap closing tasks
+ End Services
+ Events
+  Internet         event_inet
+  Buffer_Entering  event_entering
+ End Events
+ Commands
+  Name     ESockets
+  Help     *ESockets will list the connections currently being used.
+  Code     com_esockets
+
+  Name     EMonitors
+  Help     *EMonitors will list the monitors currently active.
+  Code     com_emonitors
+ End Commands
+ PostFilter
+  Name     ESockets TWInput
+  Task     -
+  Accept   UserMessage
+  Accept   UserMessageRecorded
+  Code     jfilter_twcheck
+ End PostFilter
+ Final     finalise
+ Workspace *`len_module
+End Module
+
+Pre
+ S_Lookup=1:REM We're looking the address up
+ S_Connecting=2:REM We're trying to connect
+ S_Listening=3:REM We're listening for a connection
+ S_Connected=4:REM We're connected !
+ S_NoSuchHost=-1
+ S_ResolveFailure=-2
+ S_ResolveError=-3
+ S_NoSockets=-4
+ S_Unreachable=-5
+ S_NotListening=-6
+ S_BindError=-7
+ S_NooneThere=-8
+ MagicVal=&feef1ef0:REM Fee Fie Fo...
+ MagicVal_Monitor=&beeffeed:REM Ah, the reason for dying all the time
+ InitialBuffer=256
+ MaximumBuffer=1024*32
+ LowLimit=&8000:REM Minimum that a descriptor block may be
+End Pre
+
+#Rem off
+; jumps from header (I must fix this!)
+.jfilter_twcheck
+   B       filter_twcheck
+
+; *******************************************************************
+; Subroutine:   finalise
+; Description:  Shutdown the module - we'll kill everything off that
+;               we know about
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>finalise
+   STMFD   (sp)!,{r0-r5,r10,r11,link}    ; Stack registers
+   MOV     r5,#0                         ; no 'last' one
+; monitors first as they refer to sockets
+$losemonitors
+   LDRW    r0,`monitors
+   TEQ     r0,#0                         ; last one
+   BEQ     $nomoremonitors
+   TEQ     r0,r5                         ; did it go back to the same one ?
+   BEQ     $nomoremonitors               ; if didn't release, exit
+   MOV     r5,r0                         ; hang on to current one as last
+   BL      swi_forget                    ; try to forget it
+   B       $losemonitors
+$nomoremonitors
+   MOV     r5,#0                         ; no 'last' one
+; now sockets
+$losesockets
+   LDRW    r0,`sockets
+   TEQ     r0,#0                         ; last one
+   BEQ     $nomoresockets
+   TEQ     r0,r5                         ; did it go back to the same one ?
+   BEQ     $nomoresockets                ; if didn't release, exit
+   MOV     r5,r0                         ; hang on to current one as last
+   BL      swi_forget                    ; try to forget it
+   B       $losesockets
+$nomoresockets
+   LDMFD   (sp)!,{r0-r5,r10,r11,pc}      ; Return from call
+
+; *******************************************************************
+; Subroutine:   svc_wimpclosedown (Wimp_CloseDown)
+; Description:  Checks if the task closing down is one we have a block for
+; Parameters:   r0 = 0 if closing down
+;               r2 = task handle (unused)
+; Returns:      none
+; *******************************************************************
+>svc_wimpclosedown
+   STMFD   (sp)!,{r0-r1,r10,r11,link}    ; Stack registers
+;    REM     "%c04%c30Closing down, r0=%&0"
+   CMP     r0,#0                         ; is it closedown ?
+   LDMNEFD (sp)!,{r0-r1,r10,r11,pc}^     ; if not, exit
+; first try shutting any monitors
+$tryagain_monitors
+   LDR     r0,[r0,#&ff8]                 ; read domain id of dying task
+   LDRW    r10,`monitors                 ; read head of monitors list
+   RAS     r10,r0,#`mon_domain           ; find it in the list
+   TEQ     r10,#0                        ; was there one
+   BEQ     $tryagain_sockets
+   XBL     swi_forget,r10                ; forget it!
+   MOV     r0,#0
+   B       $tryagain_monitors
+
+$tryagain_sockets
+   MOV     r0,#0                         ; base page
+   LDR     r0,[r0,#&ff8]                 ; read domain id of dying task
+   LDRW    r11,`sockets                  ; read head of sockets list
+   RAS     r11,r0,#`domain               ; find it in the list
+   TEQ     r11,#0                        ; was there one
+   LDMEQFD (sp)!,{r0-r1,r10,r11,pc}^     ; if so, return from call
+   XBL     swi_forget,r11                ; forget it!
+   B       $tryagain_sockets
+
+; *******************************************************************
+; Subroutine:   swi_connecttohost (ESocket_ConnectToHost)
+; Description:  Connect to a host
+; Parameters:   r0 = host name
+;               r1 = port
+; Returns:      handle, or -ve if error
+; *******************************************************************
+>swi_connecttohost
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; create a block
+   LDRW    r2,`sockets                   ; read sockets pointer
+   XBL     claim,`len_socket             ; claim space for it
+   MOV     r11,r0                        ; r11-> our workspace
+   STRW    r2,`next                      ; link next to us
+   STRW    r11,`sockets                  ; make us the head
+   LDR     r0,`MAGIC                     ; magic
+   STRW    r0,`magic                     ; store it
+   MOV     r0,#InitialBuffer             ; size of initial buffer
+   STRW    r0,`buflen                    ; store as buffer length
+   BL      claim                         ; claim that much space
+   STRW    r0,`buffer                    ; store ptr in block
+   MOV     r0,#0                         ; no data yet
+   STRW    r0,`datalen                   ; store in block
+   LDR     r2,[r0,#&ff8]                 ; read domain ID
+   STRW    r2,`domain                    ; store domain ID
+; put our data in
+   LDR     r0,[sp]                       ; re-read host name
+   BL      strdup                        ; copy it
+   STRW    r0,`addr                      ; store as the address
+   STRW    r1,`port                      ; store the port number
+   MVN     r0,#NOT -1                    ; -1 for socket handle
+   STRW    r0,`socket                    ; store the handle
+   MOV     r0,#S_Lookup                  ; we're looking up at the moment
+   STRW    r0,`state                     ; store as the state
+   BL      checksockets                  ; check them
+   STR     r11,[sp]                      ; store the handle there
+   REM     "%c04Connect to host done, returning %&B"
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+
+; *******************************************************************
+; Subroutine:   swi_connecttoaddr (ESocket_ConnectToAddr)
+; Description:  Connect to a host, given its address
+; Parameters:   r0 = host address (IP)
+;               r1 = port
+; Returns:      handle, or -ve if error
+; *******************************************************************
+>swi_connecttoaddr
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; create a block
+   LDRW    r2,`sockets                   ; read sockets pointer
+   XBL     claim,`len_socket             ; claim space for it
+   MOV     r11,r0                        ; r11-> our workspace
+   STRW    r2,`next                      ; link next to us
+   STRW    r11,`sockets                  ; make us the head
+   LDR     r0,`MAGIC                     ; magic
+   STRW    r0,`magic                     ; store it
+   MOV     r0,#InitialBuffer             ; size of initial buffer
+   STRW    r0,`buflen                    ; store as buffer length
+   BL      claim                         ; claim that much space
+   STRW    r0,`buffer                    ; store ptr in block
+   MOV     r0,#0                         ; no data yet
+   STRW    r0,`datalen                   ; store in block
+   LDR     r2,[r0,#&ff8]                 ; read domain ID
+   STRW    r2,`domain                    ; store domain ID
+; put our data in
+   LDR     r0,[sp]                       ; re-read IP
+   ADRW    r1,`hostname                  ; address of our hostname block
+   BL      makedottedip                  ; create a dotted IP
+   ADRW    r0,`hostname                  ; get the hostname address again
+   BL      strdup                        ; copy it
+   STRW    r0,`addr                      ; store as the address
+   LDR     r1,[sp,#4]                    ; re-read port number
+   STRW    r1,`port                      ; store the port number
+   MVN     r0,#NOT -1                    ; -1 for socket handle
+   STRW    r0,`socket                    ; store the handle
+   MOV     r0,#S_Lookup                  ; we're looking up at the moment
+   STRW    r0,`state                     ; store as the state
+   BL      checksockets                  ; check them
+   STR     r11,[sp]                      ; store the handle there
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   checksockets
+; Description:  check for data in the sockets
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>checksockets
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+   LDRW    r11,`sockets                  ; read head of sockets list
+$loop
+   TEQ     r11,#0                        ; is it 0 ?
+   LDMEQFD (sp)!,{r0-r5,r11,pc}^         ; if so, return from call
+
+   LDRW    r0,`state                     ; read state of handle
+   TEQ     r0,#S_Lookup                  ; is it in lookup?
+   BNE     $notlookup                    ; nope, so skip code
+
+   LDRW    r0,`addr                      ; get address of host
+   REM     "%c04Trying a lookup of %$0"
+   BL      Resolver_GetHost
+   MVNVS   r0,#NOT S_ResolveError        ; if error, resolver error
+   REM     "Returned value = %r0, %&1"
+   TEQ     r0,#36                        ; is it 'pending' ?
+   BEQ     $getnext                      ; if so, we know nothing
+   TEQ     r1,#0                         ; did it fail ?
+   MVNEQ   r0,#NOT S_ResolveError        ; if so, return resolver error
+   CMP     r0,#0                         ; did it succeed ?
+   STRWLT  r0,`state                     ; if so, store in block
+   BLT     $getnext                      ;        and jump out
+   LDR     r3,[r1,#16]                   ; r3-> pointer list of addresses
+   LDR     r3,[r3]                       ; read pointer to address
+   LDR     r3,[r3]                       ; read address
+   REM     "Looked up addr = %&3"
+
+   XSWI    "XSocket_Creat",2,1,0         ; create a socket
+   MVNVS   r0,#NOT S_NoSockets           ; if error, no sockets left
+   STRWVS  r0,`state                     ;           store as state
+   BVS     $getnext                      ;           next one
+   STRW    r0,`socket                    ; store socket handle
+   MOV     r4,r0
+
+   REM     "Socket number = %r4"
+
+   MOV     r1,#S_Connecting              ; trying to connect
+   STRW    r1,`state                     ; store the state
+
+   REM     "Making non-blocking/asynchronous"
+   LDR     r1,`FIONBIO                   ; read the FIONBIO item
+   XSWI    "XSocket_Ioctl",,,^$`true     ; make it non blocking
+   LDR     r1,`FIOASYNC                  ; read the FIOASYNC item
+   XSWI    "XSocket_Ioctl",r4,,^$`true   ; make it non blocking
+
+   LDRW    r0,`port                      ; read port number
+   REM     "Connecting to %&3, port %r0"
+   BL      htons                         ; reverse it
+   MOV     r0,r0,LSL #16                 ; put it in the top
+   ADD     r0,r0,#2                      ; add 2 (AF_INET)
+   ADRW    r1,`address                   ; r1-> address block
+   STR     r0,[r1]                       ; store port at bottom of address
+   STR     r3,[r1,#4]                    ; store address
+   XSWI    "XSocket_Connect",r4,,16      ; connect us
+   B       $checkconnectcode             ; jump to connect checking
+
+$notlookup
+   TEQ     r0,#S_Connecting              ; is it in connecting
+   BNE     $notconnecting                ; nope, so skip code
+
+   LDRW    r0,`socket                    ; read socket handle
+   XBL     selectready,,0                ; is it ready for 'write' ?
+   TEQ     r0,#0                         ; is it ready ?
+   BEQ     $getnext                      ; no, so just skip out
+
+   LDRW    r0,`socket                    ; read socket handle
+   ADRW    r1,`address                   ; space to read into
+   XSWI    "XSocket_Recv",,,1,&82        ; address of buffer without wait
+
+$checkconnectcode
+   BVS     $errorset
+$connected
+   MOV     r1,#S_Connected               ; if no error, we're connected
+   STRW    r1,`state                     ; store as state
+   B       $getnext                      ; exit
+
+$errorset
+   LDR     r0,[r0]                       ; read error number
+   REM     "Error number = %r0"
+   TEQ     r0,#35                        ; is it 'would block' ?
+   BEQ     $connected                    ; if so, we really are connected
+
+   TEQ     r0,#50                        ; net down
+   TEQNE   r0,#51                        ; net unreachable
+   TEQNE   r0,#60                        ; timed out
+   MVNEQ   r1,#NOT S_Unreachable         ; it's unreachable
+   STRWEQ  r1,`state                     ; store as state
+
+;    TEQ     r0,#54                        ; connection reset
+;    TEQNE   r0,#53                        ; Connection aborted
+;    MVNEQ   r1,#NOT S_Closed              ; it's been closed
+;    STRWEQ  r1,`state                     ; store as state
+
+   TEQ     r0,#61                        ; connection refused
+   MVNEQ   r1,#NOT S_NotListening        ; Connection refused
+   STRWEQ  r1,`state                     ; store as state
+
+$notconnecting
+   TEQ     r0,#S_Connected               ; is it connected ?
+   BNE     $notconnected                 ; nope, so skip code
+
+   LDRW    r0,`addr                      ; read address pointer
+   TEQ     r0,#0                         ; is it valid ?
+   BNE     $getnext                      ; if so, skip lookup
+   LDRW    r0,`socket                    ; read socket handle
+   ADRW    r1,`address                   ; pointer to address block
+   XSWI    "XSocket_Getpeername",,,^$`sixteen ; get peername
+   BVS     $getnext                      ; if error, exit
+   LDR     r0,[r1]                       ; read the address port bit
+   MOV     r0,r0,LSR #16                 ; shift down
+   BL      htons                         ; convert to short
+   STRW    r0,`port                      ; store as the port number
+   BL      lookupaddress                 ; attempt to lookup address
+
+$notconnected
+; get next
+$getnext
+   LDRW    r11,`next                     ; read next pointer
+   B       $loop                         ; go for more
+
+$`sixteen
+   EQUD    16
+$`true
+   EQUD    1
+
+; *******************************************************************
+; Subroutine:   htonl(host) & ntohl(host)
+; Description:  Host to network order (long) (and the inverse)
+; Parameters:   host = host in ro byte order
+; Returns:      host in net byte order
+; *******************************************************************
+; >htonl
+;    STMFD   (sp)!,{link}
+;    EOR     r14,r0,r0,ROR #16
+;    BIC     r14,r14,#&FF0000
+;    MOV     r0,r0,ROR #8
+;    EOR     r0,r0,r1,LSR #8
+;    LDMFD   (sp)!,{pc}^
+
+; *******************************************************************
+; Subroutine:   htons(port) & ntohs(port)
+; Description:  Host to network (short) (and inverse)
+; Parameters:   port (r0) = short to convert
+; Returns:      network order version
+; *******************************************************************
+>htons
+   STMFD   (sp)!,{r2,link}
+   MOV     r2,#255
+   AND     r14,r2,r0,LSR #8
+   AND     r0,r0,r2
+   ORR     r0,r14,r0,LSL #8
+   LDMFD   (sp)!,{r2,pc}^
+
+; *******************************************************************
+; Subroutine:   err_baddescriptor
+; Description:  return an error about their handle !
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>err_baddescriptor
+   ADR     r0,$`error
+   ORRS    pc,link,#vbit                 ; return with v set
+
+$`error
+   ERR     &51C00,"Bad ESocket handle"
+
+; *******************************************************************
+; Subroutine:   err_notconnected
+; Description:  return an error about them not being connected yet
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>err_notconnected
+   ADR     r0,$`error
+   ORRS    pc,link,#vbit                 ; return with v set
+
+$`error
+   ERR     &51C01,"ESocket has yet to connect"
+
+; *******************************************************************
+; Subroutine:   err_notlistening
+; Description:  return an error about them not listening (!)
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>err_notlistening
+   ADR     r0,$`error
+   ORRS    pc,link,#vbit                 ; return with v set
+
+$`error
+   ERR     &51c02,"ESocket is not listening"
+
+; *******************************************************************
+; Subroutine:   err_toolow
+; Description:  return an error about the destination being too low
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>err_toolow
+   ADR     r0,$`error
+   ORRS    pc,link,#vbit                 ; return with v set
+
+$`error
+   ERR     &51c05,"ESocket destination buffer too low"
+
+; *******************************************************************
+; Subroutine:   swi_checkstate (ESocket_CheckState)
+; Description:  Check the state of the socket
+; Parameters:   r0 = handle (pointer to block)
+; Returns:      r0 = state of connection
+; *******************************************************************
+>swi_checkstate
+   STMFD   (sp)!,{r1-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+; do work
+   BL      checksockets                  ; check all socket states
+   LDRW    r0,`state                     ; read the state
+   LDMFD   (sp)!,{r1-r5,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   swi_forget (ESocket_Forget)
+; Description:  Forget about the handle (Socket or Monitor)
+; Parameters:   r0 = handle (pointer to block)
+; Returns:      none
+; *******************************************************************
+>swi_forget
+   STMFD   (sp)!,{r0-r5,r10,r11,link}    ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,r10,r11,link}    ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   LDR     r1,[r0,#`magic]               ; read magic word
+
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r1
+   BEQ     $isasocket                    ; if so, it's a socket
+
+   LDR     r14,`MAGIC_MONITOR            ; read monitor magic
+   CMP     r14,r1
+   BEQ     $isamonitor                   ; if so, it's a monitor
+
+   LDMFD   (sp)!,{r0-r5,r10,r11,link}    ; restore registers
+   B       err_baddescriptor
+
+; it's a monitor
+$isamonitor
+   REM     "%c04Forgetting monitor %&0"
+   MOV     r10,r0                        ; r10-> block (monitor, not socket)
+   ADRW    r5,`monitors                  ; the 'last' pointer
+$mloop
+   LDR     r4,[r5]                       ; read the head of the list
+   TEQ     r4,#0                         ; are we done ?
+   LDMEQFD (sp)!,{r0-r5,r10,r11,link}    ; if so, restore registers
+   BEQ     err_baddescriptor             ; and return an error
+
+   TEQ     r4,r10                        ; is this it ?
+   BEQ     $mfound                       ; if so, we're done
+   ADD     r5,r4,#`mon_next              ; last next = this
+   B       $mloop                        ; and go for more
+
+$mfound
+   REM     "Found it"
+   LDRW    r3,`mon_next                  ; read this next
+   STR     r3,[r5]                       ; store as last next
+   MOV     r3,#0
+   STRW    r3,`mon_magic                 ; 0 the magic word
+   XBL     release,r10                   ; release the main block
+   LDMFD   (sp)!,{r0-r5,r10,r11,pc}^     ; Return from call
+
+; it's a socket
+$isasocket
+   REM     "%c04Forgetting connection %&0"
+   MOV     r11,r0                        ; r11-> block
+   ADRW    r5,`sockets                   ; the 'last' pointer
+$sloop
+   LDR     r4,[r5]                       ; read the head of the list
+   TEQ     r4,#0                         ; are we done ?
+   LDMEQFD (sp)!,{r0-r5,r10,r11,link}    ; if so, restore registers
+   BEQ     err_baddescriptor             ; and return an error
+
+   TEQ     r4,r11                        ; is this it ?
+   BEQ     $sfound                       ; if so, we're done
+   ADD     r5,r4,#`next                  ; last next = this
+   B       $sloop                        ; and go for more
+
+$sfound
+   REM     "Found it"
+   LDRW    r3,`next                      ; read this next
+   STR     r3,[r5]                       ; store as last next
+   MOV     r3,#0                         ; 0 the magic word
+   STRW    r3,`magic                     ; store as magic
+   LDRW    r0,`addr                      ; read the stdup'd address
+   MOVS    r0,r0
+   BLNE    release                       ; release it
+   LDRW    r0,`buffer                    ; the buffer address
+   MOVS    r0,r0
+   BLNE    release                       ; release it
+   LDRW    r0,`socket                    ; read socket handle
+   REM     "Losing socket, handle = %r0"
+   CMN     r0,#1                         ; is it -1 ?
+   XSWINE  "XSocket_Shutdown",,2         ; if not, close it
+   LDRW    r0,`socket                    ; read socket handle
+   CMN     r0,#1                         ; is it -1 ?
+   SWINE   "XSocket_Close"               ; if not, close it
+   XBL     release,r11                   ; release the main block
+   LDMFD   (sp)!,{r0-r5,r10,r11,pc}^     ; Return from call
+
+
+.`MAGIC3
+   EQUD    MagicVal
+
+; *******************************************************************
+; Subroutine:   swi_sendline
+; Description:  Sends a line of text to the other end
+; Parameters:   r0 = handle (-> block)
+;               r1-> string
+;               r2 = flags
+;                    b0 set means don't send CR
+;                    b1 set means don't send LF
+;                    b2 set means read to 13 terminator (otherwise 0)
+;                    others reserved (must be 0)
+; Returns:      none
+; *******************************************************************
+>swi_sendline
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   TST     r2,#1<<2                      ; terminated by a 0 ?
+   MOVEQ   r14,#0                        ; if not, it's 13
+   MOVNE   r14,#13                       ; if so, it's 0
+   MOV     r3,r1                         ; r3-> string
+$lenloop
+   LDRB    r0,[r3],#1                    ; read and inc
+; (ctrl terminated)
+;    CMP     r0,#32                        ; is it < 32 ?
+;    TEQLT   r0,#9                         ; is it 9 ?
+;    BGE     $ctrlloop                     ; if >, go for more
+   TEQ     r0,r14                        ; is it terminator ?
+   BNE     $lenloop                      ; if not, go for more
+
+   SUB     r3,r3,r1                      ; length of string + 1
+   SUB     r5,r3,#1                      ; length of string
+   REM     "%c04String len is %r5"
+; this is /cool/ code !
+   TST     r2,#1<<0                      ; don't send CR ?
+   ADDEQ   r3,r3,#1                      ; if not, add another 1
+   TST     r2,#1<<1                      ; don't send LF ?
+   SUBNE   r3,r3,#1                      ; take one from if so
+; I rather like that !
+   MOVS    r3,r3                         ; check if it's > 0!
+   BEQ     $nothingtodo                  ; nothing !!!
+   REM     "Buffer len is %r3"
+   XBL     claim,r3                      ; claim space for the new string
+; we have enough room now, so we should copy the string
+   MOV     r4,r0                         ; r4-> destination
+$copyloop
+   SUBS    r5,r5,#1                      ; take one from copy length
+   LDRGEB  r0,[r1],#1                    ; if >=0, read and inc
+   STRGEB  r0,[r4],#1                    ;         store and inc
+   BGE     $copyloop                     ; go around more
+   TST     r2,#1<<0                      ; no CR ?
+   MOVEQ   r0,#13                        ; if want one, get one
+   STREQB  r0,[r4],#1                    ; store and inc
+   TST     r2,#1<<1                      ; no LF ?
+   MOVEQ   r0,#10                        ; if want one, get one
+   STREQB  r0,[r4],#1                    ; store and inc
+   SUB     r4,r4,r3                      ; take off length
+   LDRW    r0,`socket                    ; read socket handle
+   XSWI    "XSocket_Write",,r4,r3         ; write data
+   XBL     release,r4                    ; release the space
+$nothingtodo
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   buffer_fill
+; Description:  fill a buffer with data if we can
+; Parameters:   r11-> block
+; Returns:      none
+; *******************************************************************
+>buffer_fill
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   REM     "%c04Read incoming data size"
+
+   LDRW    r1,`datalen                   ; read data length
+   CMP     r1,#MaximumBuffer             ; compare to maximum size
+   BEQ     $exit                         ; if maximum size then exit now !
+
+   LDRW    r0,`socket                    ; read socket handle
+   LDR     r1,$`FIONREAD                 ; read the FIONREAD item
+
+   SUB     sp,sp,#4
+   MOV     r2,sp                         ; space on stack for value
+
+   SWI     "XSocket_Ioctl"               ; read data waiting
+   LDR     r0,[sp],#4                    ; read value and inc
+   MOVVS   r0,#0                         ; and reset to 0 if error
+   REM     "%r0 bytes available"
+   TEQ     r0,#0                         ; is it 0 ?
+   BEQ     $exit                         ; if so, exit
+   LDRW    r2,`datalen                   ; read datalength
+   ADD     r3,r2,r0                      ; new data len will be r3
+   LDRW    r1,`buflen                    ; read buffer length
+   REM     "New length = %r3, buffer size = %r1"
+$extendloop
+   CMP     r3,r1                         ; is it bigger ?
+   BLT     $extended                     ; if so, we don't need to extend
+   REM     "Attempting to extend block"
+; extend the block
+   LDRW    r1,`buflen                    ; read buffer length
+   MOV     r1,r1,LSL #1                  ; double it
+   CMP     r1,#MaximumBuffer             ; compare to maximum size
+   BGT     $extended                     ; if too big, then we can't have it
+   REM     "New size will be %r1"
+   MOV     r1,r1,LSR #1                  ; how much we should extend by
+   LDRW    r0,`buffer                    ; thing to extend
+   BL      extend                        ; do the extend
+   BVS     $extended                     ; if error, then we're done
+   REM     "Extended ok"
+   STRW    r1,`buflen                    ; store this as the buffer length
+   STRW    r0,`buffer                    ; store the buffer pointer
+   B       $extendloop                   ; do extend again if need be
+$extended
+   LDRW    r1,`buflen                    ; re-read buffer length
+   REM     "Current buflen = %r1, len needed = %r1"
+   CMP     r3,r1                         ; compare to 'new' length
+   MOVGT   r3,r1                         ; if it's bigger then lock it's size
+   REM     "Limited now to %r3"
+   LDRW    r1,`buffer                    ; read buffer pointer
+   ADD     r1,r1,r2                      ; add current length
+   LDRW    r0,`socket                    ; read socket handle
+   SUB     r2,r3,r2                      ; take off current length (=to read)
+   REM     "Data to be read = %r2"
+   SWI     "XSocket_Read"                ; read some stuff
+   MOVVS   r0,#0                         ; if error, we read nothing
+   REM     "Read %r0 bytes"
+   LDRW    r1,`datalen                   ; read current data length
+   ADD     r1,r1,r0                      ; new data length
+   REM     "Now got %r1 bytes in buffer"
+   STRW    r1,`datalen                   ; store back
+$exit
+   LDMFD   (sp)!,{r0-r5,pc}^             ; Return from call
+
+$`FIONREAD
+   EQUD    &4004667F
+
+.`FIONBIO
+   EQUD    &8004667E                     ; FIONBIO
+.`FIOASYNC
+   EQUD    &8004667D                     ; FIOASYNC
+
+; magic
+.`MAGIC
+   EQUD    MagicVal
+.`MAGIC_MONITOR ; one that /doesn't/ explode
+   EQUD    MagicVal_Monitor
+
+; *******************************************************************
+; Subroutine:   buffer_lose
+; Description:  Lose a number of characters from the buffer
+; Parameters:   r0 = number of characters to lose
+;               r11-> block
+; Returns:      none
+; *******************************************************************
+>buffer_lose
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   REM     "%c04Reducing buffer by %r0"
+   LDRW    r1,`datalen                   ; r1 = data length
+   SUBS    r2,r1,r0                      ; r2 = data left (and LE if <=0)
+   MOVLE   r0,#0                         ; if so, length = 0
+   STRWLE  r0,`datalen                   ;        store back
+   LDMLEFD (sp)!,{r0-r5,pc}^             ;        and return from call
+   LDRW    r3,`buffer                    ; r3-> buffer
+   ADD     r4,r3,r0                      ; r4 = source pointer
+   STRW    r2,`datalen                   ; store data left as data length
+$loop
+   REM     "Data left = %r2"
+   SUBS    r2,r2,#1                      ; decrement data left
+   LDMMIFD (sp)!,{r0-r5,pc}^             ; if done, return
+   LDRB    r0,[r4],#1                    ; read and inc
+   STRB    r0,[r3],#1                    ; store and inc
+   B       $loop                         ; go around for more
+
+; *******************************************************************
+; Subroutine:   swi_readline
+; Description:  Read some data directly from the socket
+; Parameters:   r0 = handle (-> block)
+;               r1-> buffer
+;               r2 = length of buffer
+;               r3 = flags
+;                    bit 0 = don't expect CR
+;                    bit 1 = don't expect LF
+;                    (%11 means either CR or LF)
+;                    bit 2 = return line with 13 terminator (otherwise 0)
+;                    bit 3 = remove deleted characters
+;                    others reserved
+; Returns:      r1-> buffer, or 0 if failed (no line, or not big enough)
+;               r2 = length of line, or 0 if no line available
+; *******************************************************************
+>swi_readline
+   STMFD   (sp)!,{r0-r6,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r6,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r6,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r0-r6,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   MOV     r5,#1                         ; this is the first pass
+$scanbuffer
+   LDRW    r1,`datalen                   ; read data length
+   REM     "(Scanbuffer) Data length = %r1"
+   LDRW    r4,`buffer                    ; read buffer pointer
+   AND     r14,r3,#%11                   ; leave bottom two flags
+   TEQ     r14,#%11                      ; did they say 'either of them'
+   BNE     $scanloop                     ; if not, go to the clever scanloop
+
+   REM     "Either CR/LF search"
+$eitherloop
+   SUBS    r1,r1,#1                      ; decrement data length
+   BMI     $scanfailed
+   LDRB    r0,[r4],#1                    ; read data and inc
+   TEQ     r0,#13                        ; is it CR ?
+   TEQNE   r0,#10                        ; or LF ?
+   BNE     $eitherloop                   ; if not, go for more
+   B       $scanfound                    ; we've got it !
+
+$scanloop
+   SUBS    r1,r1,#1                      ; decrement data length
+   BMI     $scanfailed
+   LDRB    r0,[r4],#1                    ; read data and inc
+
+   TST     r3,#1<<0                      ; check for CR ?
+   BNE     $nocrcheck                    ; nope, so skip
+
+   TEQ     r0,#13                        ; is it 13 ?
+   BNE     $scanloop                     ; if not, go around again
+   TST     r3,#1<<1                      ; check for LF ?
+   BNE     $scanfound                    ; if none needed, we've got it !
+   TEQ     r1,#0                         ; is that it for the data ?
+   BEQ     $scanfailed                   ; if so, we must have failed
+   LDRB    r0,[r4]                       ; read next byte for LF
+   TEQ     r0,#10                        ; is it 10 ?
+   BNE     $scanloop                     ; if not, that's not it...
+   B       $scanfound                    ; we've got it !
+
+$nocrcheck
+   TST     r3,#1<<1                      ; check for LF ?
+   BNE     $nolfcheck                    ; nope, so skip
+   TEQ     r0,#10                        ; is it 13 ?
+   BNE     $scanloop                     ; if not, go around again
+   B       $scanfound                    ; we've got it !
+
+$nolfcheck
+   B       $scanloop                     ; go for more
+
+; we found what we needed
+; r4-> after terminator of string
+$scanfound
+   LDRW    r1,`buffer                    ; read buffer start
+   SUB     r5,r4,r1                      ; r5 = length required + 1
+   REM     "Found a string, length = %r5"
+   CMP     r5,r2                         ; compare to their size
+   BGT     $notenoughroom                ; oh dear, can't give it them
+   SUB     r4,r4,#1                      ; take off 1 from end of code
+   LDR     r2,[sp,#4*1]                  ; re-read destination
+   CMP     r2,#&8000                     ; is it too low to be valid ?
+   LDMLOFD (sp)!,{r0-r6,r11,link}        ; if so, restore the registers
+   BLO     err_toolow                    ;        and tell them
+   TST     r3,#1<<3                      ; are we killing deletes ?
+   BNE     $copykilldeletes              ; if so, copy without deletes
+   MOV     r6,r5                         ; r6 = copied length
+$copyloop
+   TEQ     r1,r4                         ; are they the same ?
+   BEQ     $copydone                     ; we're done !
+   LDRB    r0,[r1],#1                    ; read a byte and inc
+   STRB    r0,[r2],#1                    ; store in dest and inc
+   B       $copyloop                     ; and go around for more
+
+$copykilldeletes
+   MOV     r6,#0                         ; copied length = 0
+$ckd_loop
+   TEQ     r1,r4                         ; are we done ?
+   BEQ     $copydone                     ; if so, jump out
+   LDRB    r0,[r1],#1                    ; read a byte and inc
+   TEQ     r0,#8                         ; is it backspace ?
+   TEQNE   r0,#127                       ; or delete ?
+   STRNEB  r0,[r2],#1                    ; if not, store in dest and inc
+   ADDNE   r6,r6,#1                      ;         add one to output len
+   BNE     $ckd_loop                     ; and go around for more
+   TEQ     r6,#0                         ; are we not at the start ?
+   SUBNE   r6,r6,#1                      ; if so, decrement length
+   SUBNE   r2,r2,#1                      ;        decrement output pointer
+   B       $ckd_loop                     ; go for more
+
+$copydone
+   REM     "Copy of string done"
+   TST     r3,#1<<2                      ; what terminator ?
+   MOVEQ   r0,#0                         ; if unset, 0
+   MOVNE   r0,#13                        ; if set, 13
+   STRB    r0,[r2],#1                    ; store in block
+; r1 is already set up
+   STR     r6,[sp,#4*2]                  ; store len as r2 (was line)
+
+; %00 = stop at CR LF (kill 2)
+; %01 = stop at LF (kill 1)
+; %10 = stop at CR (kill 1)
+; %11 = stop at CR or LF (kill 1)
+   ANDS    r14,r3,#%11                   ; leave just terminator flags
+   ADDEQ   r5,r5,#1                      ; ignore 1 more characters
+   REM     "Cutting out %r5 characters from the buffer"
+   XBL     buffer_lose,r5
+   B       $exit
+
+; r5 = space needed
+$notenoughroom
+   REM     "Not enough room"
+   MOV     r1,#0
+   STR     r1,[sp,#4*1]                  ; store 0 as r1 (no line)
+   STR     r5,[sp,#4*2]                  ; store len as r2 (was line)
+   B       $exit
+
+; scan has failed, we need to refill buffer first time around
+$scanfailed
+   REM     "Scan failed, r5 = %r5"
+   SUBS    r5,r5,#1                      ; decrement number of tries left
+   BMI     $nothingfound                 ; oh deah, nothing found
+   REM     "Doing buffer fill..."
+   LDRW    r1,`datalen
+   BL      buffer_fill                   ; fill it
+   LDRW    r0,`datalen
+   CMP     r0,r1                         ; are they the same ?
+   BNE     $scanbuffer                   ; if not, go around again
+
+   REM     "No need to rescan because nothing's changed"
+
+$nothingfound
+   MOV     r0,#0
+   STR     r0,[sp,#4*1]                  ; store as r1 (no line)
+   STR     r0,[sp,#4*2]                  ; store as r2 ('cos there was none)
+
+$exit
+
+;    LDRW    r0,`buffer                    ; buffer pointer
+;    LDRW    r1,`buflen                    ; buffer length
+;    LDRW    r2,`datalen                   ; data length
+
+;    REM     "Buffer = %&0, Length = %&1, Data = %&2"
+
+   LDMFD   (sp)!,{r0-r6,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   swi_senddata
+; Description:  Send a block of data
+; Parameters:   r0 = handle (-> block)
+;               r1-> data block
+;               r2 = length to send
+; Returns:      r2 = amount of data sent
+; *******************************************************************
+>swi_senddata
+   STMFD   (sp)!,{r1-r2,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r1-r2,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r1-r2,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r1-r2,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   TEQ     r2,#0                         ; is len = 0 ?
+   MOVEQ   r0,#0                         ; if so, we didn't send anything
+   BEQ     $nothingtodo                  ; if so, jump out
+   LDRW    r0,`socket                    ; read socket handle
+   XSWI    "XSocket_Write"               ; write data
+   MOVVS   r0,#0                         ; if error, we wrote nothing
+$nothingtodo
+   LDMFD   (sp)!,{r1-r2,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   swi_readdata
+; Description:  read a block of data from the socket
+; Parameters:   r0 = handle
+;               r1-> block, or 0 to read
+;               r2 = length of block
+; Returns:      r1 = block passed
+;               r2 = length read, or available if r1 was 0
+; *******************************************************************
+>swi_readdata
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   TEQ     r1,#0                         ; how much data available ?
+   BNE     $notlengthcheck               ; if not, jump to the copy code
+   BL      buffer_fill                   ; if so, fill it up
+   LDRW    r0,`datalen                   ; read data length
+;    TEQ     r0,#0                         ; is it 0 ?
+;    BLEQ    buffer_fill                   ; if so, fill it up
+;    LDRWEQ  r0,`datalen                   ; re-read data length
+   STR     r0,[sp,#4*2]                  ; store in length word (r2)
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; we need to actually read some data
+$notlengthcheck
+   CMP     r1,#&8000                     ; is it in the OS space ?
+   LDMLOFD (sp)!,{r0-r5,r11,link}        ; if so, restore registers
+   BLO     err_toolow                    ;        and tell them
+   LDRW    r0,`datalen                   ; read data length
+   CMP     r0,r2                         ; compare to length they want
+   BLLT    buffer_fill                   ; if smaller then fill buffer
+   LDRWLT  r0,`datalen                   ; re-read data length
+   CMPLT   r0,r2                         ; compare to length they want
+   MOVLT   r2,r0                         ; if still not enough, that's all
+   STR     r2,[sp,#4*2]                  ; store as length read
+   MOV     r3,r2                         ; r3 = length read
+   LDRW    r4,`buffer                    ; r4 = source
+$copyloop
+   SUBS    r2,r2,#1                      ; decrement length read
+   BMI     $done                         ; if -ve, we're done
+   LDRB    r0,[r4],#1                    ; read a byte and inc
+   STRB    r0,[r1],#1                    ; store in dest and inc
+   B       $copyloop                     ; and go around for more
+$done
+   XBL     buffer_lose,r3                ; lose the data
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   swi_closed
+; Description:  check if the connection has been closed
+; Parameters:   r0 = handle (-> block)
+;               r1 = flags
+;                     bit 0 = ignore data in buffer
+; Returns:      r0 = 1 if closed, 0 if not
+; *******************************************************************
+>swi_closed
+   STMFD   (sp)!,{r1-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC                    ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   TST     r1,#1<<0                      ; do they want to check for data?
+   BNE     $ignorebuffer                 ; nope !
+   LDRW    r0,`datalen                   ; read data length
+   MOVS    r0,r0                         ; is it 0 ? (0 for not closed)
+   MOVNE   r0,#0                         ; if not, it can't be closed
+   LDMNEFD (sp)!,{r1-r5,r11,pc}^         ; if so, return from call
+
+$ignorebuffer
+   LDRW    r0,`socket                    ; read socket handle
+   XBL     selectready,,1                ; check if it is ready to 'read'
+   TEQ     r0,#0                         ; is the socket ready ?
+   LDMEQFD (sp)!,{r1-r5,r11,pc}^         ; if not, return from call
+   REM     "%c04Checking recv"
+   LDRW    r0,`socket                    ; read socket handle
+   ADRW    r1,`address
+   XSWI    "XSocket_Recv",,,1,&82        ; check if there's data there
+   BVC     $readdata
+   LDR     r0,[r0]                       ; read error number
+   TEQ     r0,#35                        ; is it EWOULDBLOCK ?
+   MOVEQ   r0,#1                         ; if so, pretend got char
+   MOVNE   r0,#0                         ; otherwise, pretend nothing got
+$readdata
+   TEQ     r0,#0                         ; nothing received ?
+   MOVEQ   r0,#1                         ; if so, it's been closed
+   MOVNE   r0,#0                         ; if not, it's not been closed
+   LDMFD   (sp)!,{r1-r5,r11,pc}^         ; Return from call
+
+; *******************************************************************
+; Subroutine:   selectready
+; Description:  Check whether a socket is ready or not
+; Parameters:   r0 = socket handle
+;               r1 = 1 for 'read', 0 for 'write'
+; Returns:      0 if ready, 1 if not
+; *******************************************************************
+; #rem on
+>selectready
+   STMFD   (sp)!,{r1-r7,link}            ; Stack registers
+   MOV     r4,r0                         ; r4 = socket number
+   MOV     r6,r1                         ; r6 = which one to read
+   SWI     "XSocket_Gettsize"            ; read the TSize
+   MOVVS   r0,#1                         ; if error, pretend it was ready !
+   LDMVSFD (sp)!,{r1-r7,pc}^             ; Return from call
+   MOV     r5,r0                         ; r5 = number of sockets
+   MOV     r0,r0,LSR #2                  ; / 32 for number of bytes
+   ADD     r0,r0,#7                      ; add four too
+   BIC     r0,r0,#3                      ; clear off bits
+   MOV     r2,r0                         ; r2 = length of block
+   BL      claim                         ; claim space
+   MOV     r7,r0                         ; hang on to the pointer for release
+   MOV     r1,#0                         ; 0 to clear things
+$clearloop
+   SUBS    r2,r2,#4                      ; decrement the offset
+   STRPL   r1,[r0,r2]                    ; if +ve, store it
+   BPL     $clearloop                    ;         and go around for more
+   MOV     r1,r0                         ; r1-> block
+   MOV     r2,r4,LSR #5                  ; divide socket number by 32
+   REM     "Reading word %r2"
+   AND     r3,r4,#31                     ; leave just the bits of number
+   REM     "Bit = %r3"
+   MOV     r4,#1
+   LDR     r0,[r1,r2,LSL #2]             ; read the word
+   REM     "Word = %r0"
+   MOV     r4,r4,LSL r3                  ; r4 = bit set
+   REM     "New word = %&4"
+   STR     r4,[r1,r2,LSL #2]             ; store word back
+   TEQ     r6,#0                         ; are we writing ?
+   MOVEQ   r2,r1                         ; if write, r2=buffer, r1=0
+   MOVEQ   r1,#0
+   MOVNE   r2,#0                         ; else, r1=buffer, r2=0
+   XSWI    "XSocket_Select",r5,,,0,^$`time ; check it
+   XBLVS   release,r7                    ; if error, release the space
+   MOVVS   r0,#1                         ; if error, pretend ready
+   LDMVSFD (sp)!,{r1-r7,pc}^             ; Return from call
+   MOV     r5,r0                         ; r5 = number of ready descriptors
+   XBL     release,r7                    ; release the space
+   REM     "Sockets ready = %r5"
+   TEQ     r5,#0                         ; is the socket ready ?
+   MOVEQ   r0,#0                         ; if not, return 0
+   MOVNE   r0,#1                         ; if so, return 1
+   LDMFD   (sp)!,{r1-r7,pc}^             ; Return from call
+; #rem off
+
+$`time
+   EQUD    0
+   EQUD    0
+
+; *******************************************************************
+; Subroutine:   com_esockets
+; Description:  list the sockets currently in use
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>com_esockets
+   STMFD   (sp)!,{r0-r6,r11,link}        ; Stack registers
+   LDR     r12,[r12]                     ; special to commands
+   LDRW    r11,`sockets                  ; read sockets block
+$loop
+   TEQ     r11,#0                        ; is that it ?
+   LDMEQFD (sp)!,{r0-r6,r11,pc}          ; Return from call
+
+   LDRW    r1,`addr                      ; read pointer to address
+   TEQ     r1,#0                         ; is address valid ?
+   XBLEQ   swi_checkstate,r11            ; do a quick poll on it
+   LDRWEQ  r1,`addr                      ; read pointer to address
+   TEQEQ   r1,#0                         ; is address valid ?
+   ADREQ   r1,$`lookingup                ; if not, tell them we're looking!
+
+   LDRW    r0,`socket                    ; read socket handle
+   LDRW    r2,`port                      ; read port number
+   LDRW    r3,`datalen                   ; read length of data pending
+   LDRW    r4,`buflen                    ; read length of the buffer
+   LDRW    r5,`state                     ; read the connection state
+   CMP     r5,#S_Listening               ; is it listening ?
+   ADREQ   r1,$`listening                ; if so, replace addr
+   LDRW    r6,`domain                    ; read domain id
+   REMP    "%$1:%r2 (Socket %r0)"
+   REMP    "  Buflen = %r4, Data pending = %r3"
+   XBL     swi_decodestate,r5            ; might as well get the string
+   REMP    "  Handle = %&B, State = %r5 (%$0)"
+   REMP    "  Domain = %&6"
+   LDRW    r11,`next                     ; read next handle
+   B       $loop                         ; go around again
+
+$`listening
+   EQUZ    "[Listening]"
+$`lookingup
+   EQUZA   "[Resolving]"
+
+
+; *******************************************************************
+; Subroutine:   com_emonitors
+; Description:  list the monitors currently in use
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>com_emonitors
+   STMFD   (sp)!,{r0-r3,r10,link}        ; Stack registers
+   LDR     r12,[r12]                     ; special to commands
+   LDRW    r10,`monitors                 ; read monitors block
+$loop
+   TEQ     r10,#0                        ; is that it ?
+   LDMEQFD (sp)!,{r0-r3,r10,pc}          ; Return from call
+
+   LDRW    r1,`pollptr                   ; read poll pointer
+   REMP    "Monitor %&A (Pollword %&1)"
+   LDRW    r1,`mon_type
+   LDRW    r2,`mon_domain
+   LDRW    r3,`pollptr
+   LDR     r3,[r3]
+   REMP    "  Type = %r1, Domain = %&2"
+   REMP    "  State = %r3"
+   TEQ     r1,#0
+   BNE     $nottype0                     ; if not 0, jump over
+   LDRW    r1,`mon_skt                   ; read the socket monitored
+   REMP    "  Monitoring ESocket %&1 and keys"
+   B       $typedone
+$nottype0
+$typedone
+   LDRW    r10,`mon_next                 ; read next handle
+   B       $loop                         ; go around again
+
+; *******************************************************************
+; Subroutine:   swi_listen
+; Description:  Listen for a connection on a port
+; Parameters:   r0 = port number, or 0 to allocate a port
+; Returns:      r0 = handle (-> block), or -ve for error
+;               r1 = port number if 0 on entry
+; *******************************************************************
+>swi_listen
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+   REM     "%c04Listening (port = %r0)"
+; create a block
+   LDRW    r2,`sockets                   ; read sockets pointer
+   XBL     claim,`len_socket             ; claim space for it
+   MOV     r11,r0                        ; r11-> our workspace
+   STRW    r2,`next                      ; link next to us
+   STRW    r11,`sockets                  ; make us th head
+   LDR     r0,`MAGIC                     ; magic
+   STRW    r0,`magic                     ; store it
+   MOV     r0,#0                         ; we don't need a buffer for listens
+   STRW    r0,`buflen                    ; store as buffer length
+   STRW    r0,`buffer                    ; store ptr in block
+   STRW    r0,`datalen                   ; store in block
+   LDR     r2,[r0,#&ff8]                 ; read domain ID
+   STRW    r2,`domain                    ; store domain ID
+; put our data in
+   STRW    r0,`addr                      ; store as the address
+   LDR     r1,[sp]                       ; re-read port number
+   STRW    r1,`port                      ; store the port number
+   MVN     r0,#NOT -1                    ; -1 for socket handle
+   STRW    r0,`socket                    ; store the handle
+   MOV     r0,#S_Listening               ; we're listening for a connect
+   STRW    r0,`state                     ; store as the state
+; now we listen !
+
+; create socket
+   XSWI    "XSocket_Creat",2,1,0         ; create a socket
+   MVNVS   r0,#NOT S_NoSockets           ; if error, no sockets left
+   STRWVS  r0,`state                     ;           store as state
+   BVS     $failed                       ;           we failed
+   STRW    r0,`socket                    ; store socket handle
+   MOV     r4,r0                         ; r4 = socket
+   REM     "Socket number = %r4"
+
+   LDRW    r0,`port                      ; read port number
+   REM     "Port = %r0"
+   BL      htons                         ; reverse it
+   MOV     r0,r0,LSL #16                 ; put it in the top
+   ADD     r0,r0,#2                      ; add 2 (AF_INET)
+   ADRW    r1,`address                   ; pointer to address block
+   REM     "Port data = %&0, address block = %&1"
+   STR     r0,[r1]                       ; store port at bottom of address
+   MOV     r0,#0                         ; no address mask
+   STR     r0,[r1,#4]                    ; store address
+
+;    LDR     r0,[r1]
+;    REM     "Address = %&0"
+;    LDR     r0,[r1,#4]
+;    REM     "Address = %&0"
+;    LDR     r0,[r1,#8]
+;    REM     "Address = %&0"
+;    LDR     r0,[r1,#12]
+;    REM     "Address = %&0"
+
+   XSWI    "XSocket_Bind",r4,,16         ; bind it
+   XSWIVC  "XSocket_Getsockname",r4,,^$`sixteen ; read its value
+   LDRWVC  r0,`address                   ; read the port number
+   MOVVC   r0,r0,LSR #16                 ; shift short down
+   BLVC    htons                         ; convert it
+   STRWVC  r0,`port                      ; store back as the port
+
+   REM     "Making non-blocking/asynchronous"
+   LDRVC   r1,`FIONBIO                   ; read the FIONBIO item
+   XSWIVC  "XSocket_Ioctl",r4,,^$`true   ; make it non blocking
+   LDRVC   r1,`FIOASYNC                  ; read the FIOASYNC item
+   XSWIVC  "XSocket_Ioctl",r4,,^$`true   ; make it non blocking
+
+; now /really/ listen !
+
+   XSWIVC  "XSocket_Listen",r4,5         ; if no error listen !
+   MVNVS   r0,#NOT S_BindError           ; if error, we couldn't bind
+   STRWVS  r0,`state                     ;           store as state
+   BVS     $failed                       ; jump to failed code
+
+   LDR     r0,[sp]                       ; re-read r0
+   TEQ     r0,#0
+   LDRWEQ  r0,`port                      ; if 0, read port number
+   STREQ   r0,[sp,#4]                    ; if so, store as r1
+   STR     r11,[sp]                      ; store the handle there
+   REM     "Listen ok, returning %&B"
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; this is the bit where we deal with failures
+$failed
+   LDRW    r0,`state                     ; re-read the state
+   REM     "State on fail was %r0"
+   STR     r0,[sp]                       ; store it as return
+   XBL     swi_forget,r11                ; now forget this handle
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+$`true
+   EQUD    1
+$`sixteen
+   EQUD    16
+
+; *******************************************************************
+; Subroutine:   swi_accept
+; Description:  Accept a connection from a host
+; Parameters:   r0 = handle (-> block)
+;               r1 = flags
+;                     bit 0 set to close the listening socket
+; Returns:      r0 = new handle of accepted connection
+; *******************************************************************
+>swi_accept
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Listening               ; are we listening ?
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_notlistening              ; go away !
+; do work
+
+; create a block
+#MapWS socket,r5
+   LDRW    r2,`sockets                   ; read sockets pointer
+   XBL     claim,`len_socket             ; claim space for it
+   MOV     r5,r0                         ; r5-> our workspace
+   STRW    r2,`next                      ; link next to us
+   STRW    r5,`sockets                   ; make us the head
+   LDR     r0,`MAGIC2                    ; magic
+   STRW    r0,`magic                     ; store it
+   MOV     r0,#InitialBuffer             ; size of initial buffer
+   STRW    r0,`buflen                    ; store as buffer length
+   BL      claim                         ; claim that much space
+   STRW    r0,`buffer                    ; store ptr in block
+   MVN     r0,#0                         ; no socket yet
+   STRW    r0,`socket                    ; store as socket handle
+   MOV     r0,#0                         ; no data yet
+   STRW    r0,`datalen                   ; store in block
+   LDR     r2,[r0,#&ff8]                 ; read domain ID
+   STRW    r2,`domain                    ; store domain ID
+; put our data in
+   STRW    r0,`addr                      ; store 0 as address
+   STRW    r0,`port                      ; store 0 as port
+#MapWS socket
+
+   LDRW    r0,`socket                    ; read the socket
+   ADRW    r1,`address                   ; pointer to address block
+   XSWI    "XSocket_Accept",,,^$`sixteen  ; accept connection
+#MapWS socket,r5
+   MVNVS   r0,#NOT S_NooneThere          ; if error, there's nobody there
+   STRWVS  r0,`state                     ;           store as state
+   BVS     $failed                       ;           we failed
+   STRW    r0,`socket                    ; store socket handle
+
+   MOV     r1,#S_Connected               ; we're connected !
+   STRW    r1,`state                     ; store as the state
+#MapWS socket
+
+   MOV     r4,r0                         ; r4 = socket
+
+   REM     "Making non-blocking/asynchronous"
+   LDR     r1,$`FIONBIO                  ; read the FIONBIO item
+   XSWI    "XSocket_Ioctl",,,^$`true     ; make it non blocking
+   LDR     r1,$`FIOASYNC                 ; read the FIOASYNC item
+   XSWI    "XSocket_Ioctl",r4,,^$`true   ; make it non blocking
+
+   LDR     r2,[sp,#4*1]                  ; re-read r1 (flags)
+   TST     r2,#1<<0                      ; did they want the other closing ?
+   XBLNE   swi_forget,r11                ; if so, close it
+
+   MOV     r11,r5                        ; lookup on new socket
+   BL      lookupaddress                 ; initiate a lookup
+
+   STR     r5,[sp,#4*0]                  ; store new handle
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+; this is the bit where we deal with failures
+$failed
+#MapWS socket,r5
+   LDRW    r0,`state                     ; re-read the state
+   STR     r0,[sp]                       ; store it as return
+   XBL     swi_forget,r5                 ; now forget this handle
+#MapWS socket
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+$`FIONBIO
+   EQUD    &8004667E                     ; FIONBIO
+$`FIOASYNC
+   EQUD    &8004667D                     ; FIOASYNC
+
+$`true
+   EQUD    1
+$`sixteen
+   EQUD    16
+
+; *******************************************************************
+; Subroutine:   makedottedip
+; Description:  Create a dotted IP string from an IP being passed
+; Parameters:   r0 = IP
+;               r1-> buffer (3*4+3+1 = 16 bytes long)
+; Returns:      none
+; *******************************************************************
+>makedottedip
+   STMFD   (sp)!,{r0-r4,link}            ; Stack registers
+   MOV     r4,r0                         ; r4 = IP
+   MOV     r3,#ASC(".")                  ; seperator
+; first digit
+   AND     r0,r4,#255                    ; read byte 0 of address
+   MOV     r2,#16                        ; size of buffer
+   SWI     "XOS_ConvertCardinal1"        ; convert it
+   STRB    r3,[r1],#1                    ; store seperator and inc
+; second digit
+   MOV     r0,r4,LSR #8                  ; read byte 1 of address
+   SWI     "XOS_ConvertCardinal1"        ; convert it
+   STRB    r3,[r1],#1                    ; store seperator and inc
+; third digit
+   MOV     r0,r4,LSR #16                 ; read byte 2 of address
+   SWI     "XOS_ConvertCardinal1"        ; convert it
+   STRB    r3,[r1],#1                    ; store seperator and inc
+; fourth digit
+   MOV     r0,r4,LSR #24                 ; read byte 3 of address
+   SWI     "XOS_ConvertCardinal1"        ; convert it
+; final terminator
+   MOV     r3,#0                         ; real terminator
+   STRB    r3,[r1],#1                    ; store seperator and inc
+   LDMFD   (sp)!,{r0-r4,pc}^             ; Return from call
+
+; *******************************************************************
+; Subroutine:   lookupaddress
+; Description:  initiate a lookup of the address in `address
+; Parameters:   r11-> block for result
+; Returns:      none
+; *******************************************************************
+>lookupaddress
+   STMFD   (sp)!,{r0-r5,link}            ; Stack registers
+   REM     "Attempting to lookup host"
+   ADRW    r4,`address
+   LDR     r0,[r4,#4]                    ; read IP
+   ADRW    r1,`hostname                  ; r1-> buffer for result
+   BL      makedottedip
+
+   ADRW    r0,`hostname                  ; address of our buffer
+   REM     "Trying to lookup hostname of %$0"
+   BL      Resolver_GetHost              ; do the lookup
+   ADRWVS  r0,`hostname                  ; if error, then this is it
+   BVS     $gothostname
+   TEQ     r0,#36                        ; was it still running ?
+   BEQ     $exit                         ; if so, we can do no more
+   LDR     r0,[r1,#0]                    ; read primary name
+$gothostname
+   BL      strdup                        ; copy it
+   STRW    r0,`addr                      ; store as the address
+$exit
+   LDMFD   (sp)!,{r0-r5,pc}^             ; Return from call
+
+; *******************************************************************
+; Subroutine:   swi_connectionname
+; Description:  Reads the name of a connection
+; Parameters:   r0 = handle
+; Returns:      r0-> name, or 0 if not known yet
+; *******************************************************************
+>swi_connectionname
+   STMFD   (sp)!,{r1-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r1-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   LDRW    r0,`addr                      ; read the address
+   TEQ     r0,#0                         ; is it valid ?
+   XBLEQ   swi_checkstate,r11            ; see if it's changed
+   LDRWEQ  r0,`addr                      ; read the address
+   LDMFD   (sp)!,{r1-r5,r11,pc}^         ; Return from call
+
+.`MAGIC2
+   EQUD    MagicVal
+.`MAGIC_MONITOR2
+   EQUD    MagicVal_Monitor
+
+; *******************************************************************
+; Subroutine:   swi_ouraddress
+; Description:  Reads the local address of a connection
+; Parameters:   r0 = handle
+; Returns:      r0 = IP address
+;               r1 = port number
+; *******************************************************************
+>swi_ouraddress
+   STMFD   (sp)!,{r2-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   TEQNE   r0,#S_Listening               ; or am I listening ?
+   LDMNEFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   LDRW    r0,`socket
+   ADRW    r1,`address                   ; our block
+   XSWI    "XSocket_Getsockname",,,^$`sixteen ; read its value
+   LDRW    r0,`address                   ; read the port number
+   MOV     r0,r0,LSR #16                 ; shift short down
+   BL      htons                         ; convert it
+   MOV     r1,r0                         ; r1 = port number
+   LDR     r0,[r12,#`address+4]          ; read the IP address
+   LDMFD   (sp)!,{r2-r5,r11,pc}^         ; Return from call
+
+$`sixteen
+   EQUD    16
+
+; *******************************************************************
+; Subroutine:   swi_theiraddress
+; Description:  Reads the remove address of a connection
+; Parameters:   r0 = handle
+; Returns:      r0 = IP address
+;               r1 = port number
+; *******************************************************************
+>swi_theiraddress
+   STMFD   (sp)!,{r2-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r2-r5,r11,link}        ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   LDRW    r0,`socket
+   ADRW    r1,`address                   ; our block
+   XSWI    "XSocket_Getpeername",,,^$`sixteen ; read its value
+   LDRW    r0,`address                   ; read the port number
+   MOV     r0,r0,LSR #16                 ; shift short down
+   BL      htons                         ; convert it
+   MOV     r1,r0                         ; r1 = port number
+   LDR     r0,[r12,#`address+4]          ; read the IP address
+   LDMFD   (sp)!,{r2-r5,r11,pc}^         ; Return from call
+
+$`sixteen
+   EQUD    16
+
+; *******************************************************************
+; Subroutine:   event_inet
+; Description:  Internet event occuring
+; Parameters:   r1 = event reason (3 = connection closed, 1 = input pending)
+;               r2 = socket handle
+; Returns:      none
+; *******************************************************************
+>event_inet
+   STMFD   (sp)!,{r0-r5,r10,r11,link}    ; Stack registers
+   TEQ     r1,#3                         ; is it closed ?
+   TEQNE   r1,#1                         ; or input ?
+   LDMNEFD (sp)!,{r0-r5,r10,r11,pc}      ; if not, return from call
+   LDRW    r5,`monitors                  ; read head of monitors list as next
+$loop
+   MOV     r10,r5                        ; this = next
+   TEQ     r10,#0                        ; is that it ?
+   LDMEQFD (sp)!,{r0-r5,r10,r11,pc}      ; if so, return from call
+   LDRW    r5,`mon_next                  ; the 'next' block
+   LDRW    r0,`mon_type                  ; read the monitor type
+   TEQ     r0,#0                         ; is it 0 ?
+   BNE     $loop                         ; if not, go for more
+   LDRW    r11,`mon_skt                  ; read Esocket handle
+   LDRW    r0,`socket                    ; read real socket handle
+   TEQ     r0,r2                         ; is this the one ?
+   BNE     $loop                         ; if not, go for more
+   MOV     r0,#1                         ; 1 to mark it as having changed
+   LDRW    r1,`pollptr                   ; read pollword pointer
+   STR     r0,[r1]                       ; store as the pollword
+   B       $loop                         ; and go for more
+
+; *******************************************************************
+; Subroutine:   event_entering
+; Description:  Key entering the keyboard buffer
+; Parameters:   r1 = 0 for keyboard
+; Returns:      none
+; *******************************************************************
+>event_entering
+   TEQ     r1,#0                         ; is it keyboard buffer ?
+   MOVNES  pc,link                       ; return if not
+   B       keyhasbeenpressed             ; now do the keypress code
+
+; *******************************************************************
+; Subroutine:   keyhasbeenpressed
+; Description:  A key has been pressed, or has the possibility of having
+;               been pressed - mark it in all monitors
+; Parameters:   none
+; Returns:      none
+; *******************************************************************
+>keyhasbeenpressed
+   STMFD   (sp)!,{r0-r5,r10,link}        ; Stack registers
+   LDRW    r5,`monitors                  ; read head of monitors list as next
+$loop
+   MOV     r10,r5                        ; this = next
+   TEQ     r10,#0                        ; is that it ?
+   LDMEQFD (sp)!,{r0-r5,r10,pc}^         ; if so, return from call
+   LDRW    r5,`mon_next                  ; the 'next' block
+   LDRW    r0,`mon_type                  ; read the monitor type
+   TEQ     r0,#0                         ; is it 0 ?
+   BNE     $loop                         ; if not, go for more
+   MOV     r0,#1                         ; mark as something happening
+   LDRW    r1,`pollptr                   ; read pollword pointer
+   STR     r0,[r1]                       ; store as the pollword
+   B       $loop                         ; go for more
+
+; *******************************************************************
+; Subroutine:   filter_twcheck
+; Description:  Checks whether taskwindow has received input, so that
+;               we can flag this as a terminating condition.
+; Parameters:   r0 = reason
+;               r1-> user block
+; Returns:      none
+; *******************************************************************
+>filter_twcheck
+   TEQ     r0,#17                        ; is it 17 ?
+   TEQNE   r0,#18                        ; or 18 ? (messages)
+   MOVNES  pc,link                       ; return otherwise
+   STMFD   (sp)!,{r0,r2}                 ; Stack registers
+   LDR     r0,[r1,#16]                   ; read message number
+   LMOV    r2,#&808C0                    ; TaskWindow_Input
+   TEQ     r0,r2                         ; are they the same ?
+   LDMFD   (sp)!,{r0,r2}                 ; restore the registers
+   MOVNES  pc,link                       ; if not input, return
+   B       keyhasbeenpressed             ; pretend a key has been pressed
+
+; *******************************************************************
+; Subroutine:   swi_monitor
+; Description:  Monitor the socket and key handler
+; Parameters:   r0 = type (0 only)
+;               r1 = socket
+; Returns:      r0 = handle (monitor block)
+; *******************************************************************
+>swi_monitor
+   STMFD   (sp)!,{r0-r5,r10,r11,link}    ; Stack registers
+   TEQ     r0,#0                         ; is it valid ?
+   BNE     $unknowntype                  ; if not, exit
+; check validity
+   CMP     r1,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,10,r11,link}     ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r1                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r10,r11,link}    ; restore registers
+   BNE     err_baddescriptor
+   LDRW    r0,`state                     ; read the state
+   TEQ     r0,#S_Connected               ; are we connected ?
+   LDMNEFD (sp)!,{r0-r5,r10,r11,link}    ; restore registers
+   BNE     err_notconnected              ; go away !
+; do work
+   XBL     claim,`len_monitor            ; claim amount of space for monitor
+   STR     r1,[r0,#`mon_skt]             ; store the socket handle
+   MOV     r2,#0
+   STR     r2,[r0,#`pollword]            ; store 0 as the pollword
+   STR     r2,[r0,#`mon_type]            ; store the monitor type
+   LDR     r2,[r2,#&FF8]                 ; read domainId
+   STR     r2,[r0,#`mon_domain]          ; store the domainId
+   ADD     r1,r0,#`pollword              ; pointer to pollword
+   STR     r1,[r0,#`pollptr]             ; store as the pointer
+   LDR     r1,`MAGIC_MONITOR2            ; read the magic monitor word
+   STR     r1,[r0,#`mon_magic]           ; coo, more magic
+
+; attach us
+   LDRW    r10,`monitors                 ; read monitors block
+   STR     r10,[r0,#`mon_next]           ; store as the next block
+   STRW    r0,`monitors                  ; store as the head
+
+   STR     r0,[sp,#0]                    ; store r0 on stack
+   LDMFD   (sp)!,{r0-r5,r10,r11,pc}^     ; return from call
+
+; when they give a silly 'type' field
+$unknowntype
+   LDMFD   (sp)!,{r0-r5,r10,r11,link}    ; restore registers
+   ADR     r0,$`error                    ; read error
+   ORRS    pc,link,#vbit                 ; return with V set
+$`error
+   ERR     &51C03,"Unknown type passed to ESocket_Monitor"
+
+
+; *******************************************************************
+; Subroutine:   swi_resetmonitor
+; Description:  Resets the monitor pollword
+; Parameters:   r0 = handle
+;               r1 = 0 to simply clear the current pollword
+;                    address to set it
+; Returns:      address of pollword
+; *******************************************************************
+>swi_resetmonitor
+   STMFD   (sp)!,{r0-r5,r10,link}    ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,10,link}         ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r10,r0                        ; r10-> block
+   LDRW    r0,`mon_magic                 ; read magic
+   LDR     r14,`MAGIC_MONITOR2           ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r10,link}        ; restore registers
+   BNE     err_baddescriptor
+; do work
+   TST     r1,#&00000003                 ; is it an address ?
+   LDMNEFD (sp)!,{r0-r5,r10,link}        ; NO, restore registers
+   BNE     err_baddescriptor             ; oh dear...
+
+   TEQ     r1,#0                         ; is it being changed ?
+   STRWNE  r1,`pollptr                   ; if so, change it
+   LDRWEQ  r1,`pollptr                   ; if not, read it
+   MOV     r0,#0                         ; zero it
+   STR     r0,[r1]                       ; store as the pollword
+   STR     r1,[sp,#0]                    ; store the pollword pointer as r0
+   LDMFD   (sp)!,{r0-r5,r10,pc}^         ; return back
+
+; *******************************************************************
+; Subroutine:   swi_association
+; Description:  Change the task association for an ESocket
+; Parameters:   r0 = handle
+;               r1 = 1 to associate, or 0 to dissociate
+; Returns:      none
+; *******************************************************************
+>swi_association
+   STMFD   (sp)!,{r0-r5,r11,link}        ; Stack registers
+; check validity
+   CMP     r0,#LowLimit                  ; is the descriptor too low ?
+   LDMLTFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BLT     err_baddescriptor             ; if so, it's invalid
+   MOV     r11,r0                        ; r11-> block
+   LDRW    r0,`magic                     ; read magic
+   LDR     r14,`MAGIC_MONITOR2           ; is it a monitor ?
+   CMP     r14,r0
+   BEQ     $ismonitor
+   LDR     r14,`MAGIC2                   ; and what it should be
+   CMP     r14,r0
+   LDMNEFD (sp)!,{r0-r5,r11,link}        ; restore registers
+   BNE     err_baddescriptor
+; do work
+   MOV     r1,#0
+   TEQ     r0,#0                         ; are clearing or setting
+   LDRNE   r1,[r1,#&FF8]                 ; read
+   STRW    r1,`domain
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+$ismonitor
+#MapWS monitor,r11
+   MOV     r1,#0
+   TEQ     r0,#0                         ; are we clearing or setting
+   LDRNE   r1,[r1,#&FF8]                 ; read
+   STRW    r1,`mon_domain
+#MapWS monitor
+   LDMFD   (sp)!,{r0-r5,r11,pc}^         ; Return from call
+
+
+; *******************************************************************
+; Subroutine:   Resolver_GetHost
+; Description:  Interface for Resolver_GetHost which allows us to
+;               use dotted IPs it square brackets if necessary
+; Parameters:   r0-> zero terminated host name
+; Returns:      r0-> error block if error, or number
+;               r1-> hostent block
+; *******************************************************************
+>Resolver_GetHost
+   STMFD   (sp)!,{r2-r5,link}            ; Stack registers
+   LDRB    r2,[r0]                       ; read first byte
+   TEQ     r2,#ASC("[")                  ; [ means explicit IP
+   BEQ     $isip
+   SWI     &66001                        ; Resolver_GetHost
+   LDMFD   (sp)!,{r2-r5,pc}              ; Return from call with flags
+; it's an IP like value
+$isip
+   MOV     r4,r0                         ; r4-> hostname
+   ADD     r1,r0,#1                      ; skip first character ([)
+; first digit
+   XSWI    "XOS_ReadUnsigned",10 OR (1<<30) ; decode number
+   BVS     $error
+   MOV     r3,r2                         ; r3 is our accumulator
+   LDRB    r0,[r1],#1                    ; read char then inc
+   TEQ     r0,#ASC(".")                  ; must use .'s
+   BNE     $error                        ; if not, it's an error
+; second digit
+   XSWI    "XOS_ReadUnsigned",10 OR (1<<30) ; decode number
+   BVS     $error
+   ORR     r3,r3,r2,LSL #8              ; add to accumulator
+   LDRB    r0,[r1],#1                    ; read char then inc
+   TEQ     r0,#ASC(".")                  ; must use .'s
+   BNE     $error                        ; if not, it's an error
+; third digit
+   XSWI    "XOS_ReadUnsigned",10 OR (1<<30) ; decode number
+   BVS     $error
+   ORR     r3,r3,r2,LSL #16              ; add to accumulator
+   LDRB    r0,[r1],#1                    ; read char then inc
+   TEQ     r0,#ASC(".")                  ; must use .'s
+   BNE     $error                        ; if not, it's an error
+; final digit
+   XSWI    "XOS_ReadUnsigned",10 OR (1<<30) ; decode number
+   BVS     $error
+   ORR     r3,r3,r2,LSL #24              ; add to accumulator
+   LDRB    r0,[r1],#1                    ; read char then inc
+   TEQ     r0,#ASC("]")                  ; must use ] at end
+   BNE     $error                        ; if not, it's an error
+; we have a valid IP in r3
+   ADRW    r1,`hostname                  ; our buffer for the hostname
+   STR     r1,$`hostent                  ; store in our block
+   XBL     strcpy,r4                     ; copy their name to it
+   ADR     r1,$`ip
+   STR     r1,$`addrs                    ; store IP pointer
+   ADR     r1,$`addrs
+   STR     r1,$`hostent+16               ; store addrs pointer
+   STR     r3,$`ip                       ; store our calculated IP in it
+   MOV     r0,#0                         ; no error
+   ADR     r1,$`hostent                  ; our hostent block
+   LDMFD   (sp)!,{r2-r5,link}            ; restore registers
+   BIC     pc,link,#vbit                 ; no error
+$error
+   LDMFD   (sp)!,{r2-r5,link}            ; restore registers
+   ADR     r0,$`error                    ; read error
+   ORRS    pc,link,#vbit                 ; return with V set
+$`error
+   ERR     &51C04,"Invalid character in IP"
+
+; this should be in workspace
+$`hostent
+   EQUD    0                             ; -> host name
+   EQUD    0                             ; -> -> list of hosts (N/I)
+   EQUD    2                             ; addrtype = IP
+   EQUD    4                             ; length =  4
+   EQUD    0                             ; -> -> list of addresses
+$`addrs
+   EQUD    0                             ; pointer to addresses
+   EQUD    0
+$`ip
+   EQUD    0                             ; and the IP itself
+
+; *******************************************************************
+; Subroutine:   swi_decodestate
+; Description:  Decodes the states returned from ESockets
+; Parameters:   r0 = state or error number
+; Returns:      pointer to string
+; *******************************************************************
+>swi_decodestate
+   STMFD   (sp)!,{r1-r2,link}            ; Stack registers
+   ADD     r0,r0,#8                      ; based at 0
+   CMP     r0,#4+8                       ; is it too high ?
+   MOVHI   r0,#5+8                       ; if so, it is 'unknown
+   ADR     r1,$`offsets                  ; offsets of our texts
+   LDR     r2,[r1,r0,LSL #2]             ; find the right offset
+   ADD     r0,r2,r1                      ; add on the base
+   LDMFD   (sp)!,{r1-r2,pc}^             ; Return from call
+
+$`offsets
+   EQUD    $`minus8-$`offsets
+   EQUD    $`minus7-$`offsets
+   EQUD    $`minus6-$`offsets
+   EQUD    $`minus5-$`offsets
+   EQUD    $`minus4-$`offsets
+   EQUD    $`minus3-$`offsets
+   EQUD    $`minus2-$`offsets
+   EQUD    $`minus1-$`offsets
+   EQUD    $`unknown-$`offsets
+   EQUD    $`plus1-$`offsets
+   EQUD    $`plus2-$`offsets
+   EQUD    $`plus3-$`offsets
+   EQUD    $`plus4-$`offsets
+   EQUD    $`unknown-$`offsets
+
+$`minus8
+   EQUZ    "Nobody connected to socket"
+$`minus7
+   EQUZ    "Could not bind to local port"
+$`minus6
+   EQUZ    "Connection refused (not listening at destination)"
+$`minus5
+   EQUZ    "Host is unreachable (network down?)"
+$`minus4
+   EQUZ    "No sockets left"
+$`minus3
+   EQUZ    "Resolver error (not running?)"
+$`minus2
+   EQUZ    "Resolve failed (no response)"
+$`minus1
+   EQUZ    "Host lookup failed (doesn't exist?)"
+$`plus1
+   EQUZ    "Looking up address"
+$`plus2
+   EQUZ    "Connecting to host"
+$`plus3
+   EQUZ    "Listening for connection"
+$`plus4
+   EQUZ    "Connected"
+$`unknown
+   EQUZ    "*** Unknown state ***"
+   ALIGN
+
+#library "memory",extend.claim.release.strdup
+#library "strings",strcpy.strlen
+#here libraries
+#Post
+#Run <CODE>
