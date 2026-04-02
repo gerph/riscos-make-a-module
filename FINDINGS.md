@@ -33,7 +33,27 @@ The module provides the following * commands:
 - `*ESockets`: Lists active socket connections.
 - `*EMonitors`: Lists or manages socket monitors.
 
-## Implementation Notes
-- The module is likely a wrapper around the `Socket_` SWIs (&41200).
-- It uses a custom handle-based system to track socket state.
-- It likely handles non-blocking I/O and buffering internally.
+## Implementation Details (from Disassembly)
+- **Handle Structure:** The module uses a linked list of socket descriptors (likely allocated from the module heap using `OS_Module 6`).
+- **Handle Size:** Each handle block is 40 bytes (&28).
+- **Structure Fields (Approximate):**
+  - +0: Pointer to next handle
+  - +4: Magic number/ID (v1.03 uses &58000958 at +4)
+  - +8: Socket file descriptor (from `Socket_Creat`)
+  - +12: Pointer to remote hostname/IP string (allocated via `OS_Module 6`)
+  - +16: Port number
+  - +20: State (4 = connected, 3 = listening, etc.)
+  - +24: Timestamp/last activity?
+  - +28: Pointer to buffer (allocated via `OS_Module 6`, initial size 4096)
+  - +32: Buffer size
+  - +36: Buffer read offset?
+- **Buffering:** Uses `Socket_Ioctl` to check for available data and `Socket_Read` to fill internal buffers. `ESocket_ReadLine` searches for `\n` or `\r` in these buffers.
+- **Monitoring:** `ESocket_Monitor` links an "ESocket" handle to a "Monitor" structure. Monitors seem to track activity and can be linked to other systems (e.g. Wimp messages).
+- **Error Handling:** Returns specific error blocks for "Bad ESocket handle" and "Not connected".
+- **Service Handler:** Responds to Service_WimpCloseDown (Service &53) to clean up sockets when an application quits.
+
+## SWI Refinements
+- `ESocket_ConnectToHost`: Uses `Resolver_GetHost` for DNS.
+- `ESocket_ReadLine`: Supports various line endings (CR, LF, CRLF). Can return data partially if the buffer is full.
+- `ESocket_Closed`: Peeks at the socket to check if it's still alive.
+- `ESocket_Monitor`: Registers a monitoring block for a socket.

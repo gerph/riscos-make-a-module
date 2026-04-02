@@ -49,25 +49,35 @@ _kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
 _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 {
     _kernel_oserror *err = NULL;
+    socket_handle_t *h;
+    const char *hostname;
+    int port;
+    int state;
+    const char *line;
+    char *buffer;
+    int size;
+    const void *data;
+    int closed;
+    socket_handle_t *new_h;
+    char *name;
 
     switch (number) {
         case ESocket_ConnectToHost - ESocket_00:
         {
-            const char *hostname = (const char *)r->r[0];
-            int port = r->r[1];
-            int handle;
-            err = socket_connect(hostname, port, &handle);
+            hostname = (const char *)r->r[0];
+            port = r->r[1];
+            err = socket_connect(hostname, port, &h);
             if (!err) {
-                r->r[0] = handle;
+                r->r[0] = (int)h;
             }
             return err;
         }
 
         case ESocket_CheckState - ESocket_00:
         {
-            int handle = r->r[0];
-            int state;
-            err = socket_get_state(handle, &state);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_get_state(h, &state);
             if (!err) {
                 r->r[0] = state;
             }
@@ -76,23 +86,26 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_Forget - ESocket_00:
         {
-            int handle = r->r[0];
-            return socket_forget(handle);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            return socket_forget(h);
         }
 
         case ESocket_SendLine - ESocket_00:
         {
-            int handle = r->r[0];
-            const char *line = (const char *)r->r[1];
-            return socket_send_line(handle, line);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            line = (const char *)r->r[1];
+            return socket_send_line(h, line);
         }
 
         case ESocket_ReadLine - ESocket_00:
         {
-            int handle = r->r[0];
-            char *buffer = (char *)r->r[1];
-            int size = r->r[2];
-            err = socket_read_line(handle, buffer, &size);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            buffer = (char *)r->r[1];
+            size = r->r[2];
+            err = socket_read_line(h, buffer, &size);
             if (!err) {
                 r->r[2] = size;
             }
@@ -101,10 +114,11 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_SendData - ESocket_00:
         {
-            int handle = r->r[0];
-            const void *data = (const void *)r->r[1];
-            int size = r->r[2];
-            err = socket_send_data(handle, data, &size);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            data = (const void *)r->r[1];
+            size = r->r[2];
+            err = socket_send_data(h, data, &size);
             if (!err) {
                 r->r[2] = size;
             }
@@ -113,10 +127,11 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_ReadData - ESocket_00:
         {
-            int handle = r->r[0];
-            void *buffer = (void *)r->r[1];
-            int size = r->r[2];
-            err = socket_read_data(handle, buffer, &size);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            buffer = (char *)r->r[1];
+            size = r->r[2];
+            err = socket_read_data(h, buffer, &size);
             if (!err) {
                 r->r[2] = size;
             }
@@ -125,9 +140,9 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_Closed - ESocket_00:
         {
-            int handle = r->r[0];
-            int closed;
-            err = socket_closed(handle, &closed);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_closed(h, &closed);
             if (!err) {
                 r->r[0] = closed;
             }
@@ -136,31 +151,30 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         case ESocket_Listen - ESocket_00:
         {
-            int port = r->r[0];
-            int handle;
-            err = socket_listen(port, &handle);
+            port = r->r[0];
+            err = socket_listen(port, &h);
             if (!err) {
-                r->r[0] = handle;
+                r->r[0] = (int)h;
             }
             return err;
         }
 
         case ESocket_Accept - ESocket_00:
         {
-            int listen_handle = r->r[0];
-            int new_handle;
-            err = socket_accept(listen_handle, &new_handle);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_accept(h, &new_h);
             if (!err) {
-                r->r[0] = new_handle;
+                r->r[0] = (int)new_h;
             }
             return err;
         }
 
         case ESocket_ConnectionName - ESocket_00:
         {
-            int handle = r->r[0];
-            char *name;
-            err = socket_connection_name(handle, &name);
+            err = socket_validate(r->r[0], &h);
+            if (err) return err;
+            err = socket_connection_name(h, &name);
             if (!err) {
                 r->r[0] = (int)name;
             }
@@ -173,6 +187,18 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 
         default:
             return error_BAD_SWI;
+    }
+}
+
+
+/***************************************************************************
+ * Function:     Mod_Service
+ * Description:  Handle Service calls for the module.
+ **************************************************************************/
+void Mod_Service(int service_number, _kernel_swi_regs *r, void *pw)
+{
+    if (service_number == 0x53) { // Service_WimpCloseDown
+        socket_close_all();
     }
 }
 

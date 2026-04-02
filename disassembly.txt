@@ -1,0 +1,1515 @@
+00000000 : 00000000 : .... : ; Module: Start offset
+00000004 : 00000078 : x... : ; Module: Initialisation code offset
+00000008 : 000000d4 : .... : ; Module: Finalisation code offset
+0000000c : 00000068 : h... : ; Module: Service handler offset
+00000010 : 0000002c : ,... : ; Module: Title string offset
+00000014 : 00000038 : 8... : ; Module: Help string offset
+00000018 : 00000124 : $... : ; Module: Command table offset
+0000001c : 00000580 : .... : ; Module: SWI chunk
+00000020 : 00000238 : 8... : ; Module: SWI handler code offset
+00000024 : 000001b0 : .... : ; Module: SWI names table offset
+00000028 : 00000000 : .... : ; Module: SWI decoding code offset
+0000002c : 79736145 : Easy : ; Module: Messages filename offset & Title string: b'EasySocket'
+00000030 : 6b636f53 : Sock : ;   ...
+00000034 : 27007465 : et.' : ;   ...
+00000038 : 79736145 : Easy : ; Help string
+0000003c : 6b636f53 : Sock : ;   ...
+00000040 : 31097465 : et.1 : ;   ...
+00000044 : 2033302e : .03  : ;   ...
+00000048 : 20383228 : (28  : ;   ...
+0000004c : 206e614a : Jan  : ;   ...
+00000050 : 38393931 : 1998 : ;   ...
+00000054 : 20a92029 : ) .  : ;   ...
+00000058 : 7473754a : Just : ;   ...
+0000005c : 46206e69 : in F : ;   ...
+00000060 : 6374656c : letc : ;   ...
+00000064 : 00726568 : her. : ;   ...
+00000068 : e59cc000 : .... : ;   ...
+0000006c : e3310053 : S.1. : TEQ     r1, #&53                  ; #83  = 'S'
+00000070 : 0a0000af : .... : BEQ     &00000334                 ; -> Function: svc_wimpclosedown
+00000074 : e1b0f00e : .... : MOVS    pc, lr
+00000078 : e92d403f : ?@-. : PUSH    {r0, r1, r2, r3, r4, r5, lr}  ; Initialisation code
+0000007c : e3a00006 : .... : MOV     r0, #6
+00000080 : e3a03f06 : .?.. : MOV     r3, #6, #30
+00000084 : ef02001e : .... : SWI     XOS_Module
+00000088 : 628dd004 : ...b : ADDVS   sp, sp, #4
+0000008c : 68bd803e : >..h : POPVS   {r1, r2, r3, r4, r5, pc}
+00000090 : e58c2000 : . .. : STR     r2, [r12]
+00000094 : e1a0c002 : .... : MOV     r12, r2
+00000098 : e3a00000 : .... : MOV     r0, #0
+0000009c : e0833002 : .0.. : ADD     r3, r3, r2
+000000a0 : e4820004 : .... : STR     r0, [r2], #4
+000000a4 : e1520003 : ..R. : CMP     r2, r3
+000000a8 : bafffffc : .... : BLT     &000000a0
+000000ac : e1a0200c : . .. : MOV     r2, r12
+000000b0 : e3a00010 : .... : MOV     r0, #&10                  ; #16 = bit 4
+000000b4 : e28f1f7b : {... : ADR     r1, &000002a8             ; -> [&e3300013, &0a000474, &e3300002, &0a00048b]
+000000b8 : ef00001f : .... : SWI     OS_Claim
+000000bc : e3a0000e : .... : MOV     r0, #&e                   ; #14
+000000c0 : e3a01013 : .... : MOV     r1, #&13                  ; #19
+000000c4 : ef000006 : .... : SWI     OS_Byte
+000000c8 : e3a01002 : .... : MOV     r1, #2
+000000cc : ef000006 : .... : SWI     OS_Byte
+000000d0 : e8bd803f : ?... : POP     {r0, r1, r2, r3, r4, r5, pc}
+000000d4 : e92d503f : ?P-. : PUSH    {r0, r1, r2, r3, r4, r5, r12, lr}  ; Finalisation code
+000000d8 : e59cc000 : .... : LDR     r12, [r12]
+000000dc : e1a0200c : . .. : MOV     r2, r12
+000000e0 : e3a00010 : .... : MOV     r0, #&10                  ; #16 = bit 4
+000000e4 : e28f1f6f : o... : ADR     r1, &000002a8             ; -> [&e3300013, &0a000474, &e3300002, &0a00048b]
+000000e8 : ef000020 :  ... : SWI     OS_Release
+000000ec : e3a0000d : .... : MOV     r0, #&d                   ; #13
+000000f0 : e3a01013 : .... : MOV     r1, #&13                  ; #19
+000000f4 : ef000006 : .... : SWI     OS_Byte
+000000f8 : e3a01002 : .... : MOV     r1, #2
+000000fc : ef000006 : .... : SWI     OS_Byte
+00000100 : eb000071 : q... : BL      &000002cc                 ; -> Function: finalise
+00000104 : 628dd004 : ...b : ADDVS   sp, sp, #4
+00000108 : 68bd903e : >..h : POPVS   {r1, r2, r3, r4, r5, r12, pc}
+0000010c : e3a00007 : .... : MOV     r0, #7
+00000110 : e1a0200c : . .. : MOV     r2, r12
+00000114 : ef02001e : .... : SWI     XOS_Module
+00000118 : 628dd004 : ...b : ADDVS   sp, sp, #4
+0000011c : 68bd903e : >..h : POPVS   {r1, r2, r3, r4, r5, r12, pc}
+00000120 : e8bd903f : ?... : POP     {r0, r1, r2, r3, r4, r5, r12, pc}
+00000124 : 636f5345 : ESoc : ; Command table: *b'ESockets'
+00000128 : 7374656b : kets : ;   ...
+0000012c : 72203b00 : .; r : ;   ...
+00000130 : 00000d0c : .... : ;   code offset
+00000134 : 00000000 : .... : ;   info word
+00000138 : 00000000 : .... : ;   syntax message offset
+0000013c : 00000160 : `... : ;   help message offset
+00000140 : 6e6f4d45 : EMon : ; Command table: *b'EMonitors'
+00000144 : 726f7469 : itor : ;   ...
+00000148 : 20200073 : s.   : ;   ...
+0000014c : 00000f54 : T... : ;   code offset
+00000150 : 00000000 : .... : ;   info word
+00000154 : 00000000 : .... : ;   syntax message offset
+00000158 : 0000018a : .... : ;   help message offset
+0000015c : 20202000 : .    : EORHS   r2, r0, r0
+00000160 : 20001b2a : *..  : ; *b'ESockets' help message
+00000164 : 6c6c6977 : will : STCLVS  p9, c6, [r12], #-&1dc
+00000168 : 73696c20 :  lis : Undefined instruction
+0000016c : 63021b74 : t..c : MOVWVS  r1, #&2b74                ; #11124
+00000170 : 656e6e6f : onne : STRBVS  r6, [lr, #-&e6f]!
+00000174 : 73091b63 : c..s : MOVWVC  r1, #&9b63                ; #39779
+00000178 : 6c051b20 :  ..l : Undefined instruction
+0000017c : 65622079 : y be : STRBVS  r2, [r2, #-&79]!
+00000180 : 20676e69 : ing  : RSBHS   r6, r7, r9, ROR #28
+00000184 : 64657375 : used : STRBTVS r7, [r5], #-&375
+00000188 : 1b2a002e : ..*. : ; *b'EMonitors' help message
+0000018c : 69772000 : . wi : LDMDBVS r7!, {sp} ^
+00000190 : 6c206c6c : ll l : STCVS   p12, c6, [r0], #-&1b0
+00000194 : 1b747369 : ist. : BLNE    &01d1cf40
+00000198 : 6e6f6d02 : .mon : CDPVS   p13, #6, c6, c15, c2, #0
+0000019c : 726f7469 : itor : ADRVC   r7, &970001a4
+000001a0 : 051b2073 : s .. : LDREQ   r2, [r11, #-&73]
+000001a4 : 6120796c : ly a : Undefined instruction
+000001a8 : 76697463 : ctiv : STRBTVC r7, [r9], -r3, ROR #8
+000001ac : 23002e65 : e..# : MOVWHS  r2, #&e65                 ; #3685
+000001b0 : 636f5345 : ESoc : ; SWI prefix: b'ESocket'
+000001b4 : 0074656b : ket. : ;   ...
+000001b8 : 6e6e6f43 : Conn : ; SWI +&00: b'ESocket'_b'ConnectToHost'
+000001bc : 54746365 : ectT : ;   ...
+000001c0 : 736f486f : oHos : ;   ...
+000001c4 : 68430074 : t.Ch : ; SWI +&01: b'ESocket'_b'CheckState'
+000001c8 : 536b6365 : eckS : ;   ...
+000001cc : 65746174 : tate : ;   ...
+000001d0 : 726f4600 : .For : ; SWI +&02: b'ESocket'_b'Forget'
+000001d4 : 00746567 : get. : ;   ...
+000001d8 : 646e6553 : Send : ; SWI +&03: b'ESocket'_b'SendLine'
+000001dc : 656e694c : Line : ;   ...
+000001e0 : 61655200 : .Rea : ; SWI +&04: b'ESocket'_b'ReadLine'
+000001e4 : 6e694c64 : dLin : ;   ...
+000001e8 : 65530065 : e.Se : ; SWI +&05: b'ESocket'_b'SendData'
+000001ec : 6144646e : ndDa : ;   ...
+000001f0 : 52006174 : ta.R : ; SWI +&06: b'ESocket'_b'ReadData'
+000001f4 : 44646165 : eadD : ;   ...
+000001f8 : 00617461 : ata. : ;   ...
+000001fc : 736f6c43 : Clos : ; SWI +&07: b'ESocket'_b'Closed'
+00000200 : 4c006465 : ed.L : ; SWI +&08: b'ESocket'_b'Listen'
+00000204 : 65747369 : iste : ;   ...
+00000208 : 6341006e : n.Ac : ; SWI +&09: b'ESocket'_b'Accept'
+0000020c : 74706563 : cept : ;   ...
+00000210 : 6e6f4300 : .Con : ; SWI +&0a: b'ESocket'_b'ConnectionName'
+00000214 : 7463656e : nect : ;   ...
+00000218 : 4e6e6f69 : ionN : ;   ...
+0000021c : 00656d61 : ame. : ;   ...
+00000220 : 696e6f4d : Moni : ; SWI +&0b: b'ESocket'_b'Monitor'
+00000224 : 00726f74 : tor. : ;   ...
+00000228 : 65736552 : Rese : ; SWI +&0c: b'ESocket'_b'ResetMonitor'
+0000022c : 6e6f4d74 : tMon : ;   ...
+00000230 : 726f7469 : itor : ;   ...
+00000234 : 36380000 : ..86 : ;   ...
+00000238 : e59cc000 : .... : LDR     r12, [r12]                ; SWI handler code
+0000023c : e35b000d : ..[. : CMP     r11, #&d                  ; #13
+00000240 : b08ff10b : .... : ADDLT   pc, pc, r11, LSL #2       ; Table dispatch index R11
+00000244 : ea00000c : .... : B       &0000027c
+00000248 : ea00005e : ^... : B       &000003c8                 ; -> Function: swi_connecttohost
+0000024c : ea00011a : .... : B       &000006bc                 ; -> Function: swi_checkstate
+00000250 : ea000127 : '... : B       &000006f4                 ; -> Function: swi_forget
+00000254 : ea000160 : `... : B       &000007dc                 ; -> Function: swi_sendline
+00000258 : ea0001d7 : .... : B       &000009bc                 ; -> Function: swi_readline
+0000025c : ea00022c : ,... : B       &00000b14                 ; -> Function: swi_senddata
+00000260 : ea000240 : @... : B       &00000b68                 ; -> Function: swi_readdata
+00000264 : ea000265 : e... : B       &00000c00                 ; -> Function: swi_closed
+00000268 : ea0003b2 : .... : B       &00001138                 ; -> Function: swi_listen
+0000026c : ea0003f9 : .... : B       &00001258                 ; -> Function: swi_accept
+00000270 : ea00046e : n... : B       &00001430                 ; -> Function: swi_connectionname
+00000274 : ea0004ae : .... : B       &00001534                 ; -> Function: swi_monitor
+00000278 : ea0004df : .... : B       &000015fc                 ; -> Function: swi_resetmonitor
+0000027c : e92d401e : .@-. : PUSH    {r1, r2, r3, r4, lr}
+00000280 : e28f0014 : .... : ADR     r0, &0000029c             ; -> [&000001e6, &53646142, &36004957, &e3300013]
+00000284 : e3a01000 : .... : MOV     r1, #0
+00000288 : e3a02000 : . .. : MOV     r2, #0
+0000028c : e24f4f9a : .OO. : ADR     r4, &0000002c             ; -> "EasySocket"
+00000290 : ef061506 : .... : SWI     XMessageTrans_ErrorLookup
+00000294 : e8bd401e : .@.. : POP     {r1, r2, r3, r4, lr}
+00000298 : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+0000029c : 000001e6 : .... : ANDEQ   r0, r0, r6, ROR #3
+000002a0 : 53646142 : BadS : Undefined instruction
+000002a4 : 36004957 : WI.6 : Undefined instruction
+000002a8 : e3300013 : ..0. : TEQ     r0, #&13                  ; #19
+000002ac : 0a000474 : t... : BEQ     &00001484                 ; -> Function: event_inet
+000002b0 : e3300002 : ..0. : TEQ     r0, #2
+000002b4 : 0a00048b : .... : BEQ     &000014e8                 ; -> Function: event_entering
+000002b8 : e1a0f00e : .... : MOV     pc, lr
+000002bc : 616e6966 : fina : Undefined instruction
+000002c0 : 6573696c : lise : LDRBVS  r6, [r3, #-&96c]!
+000002c4 : 656e6e00 : .nne : STRBVS  r6, [lr, #-&e00]!
+000002c8 : ff00000c : .... : Undefined instruction
+000002cc : e92d4c3f : ?L-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, r11, lr}  ; Function: finalise
+000002d0 : e3a05000 : .P.. : MOV     r5, #0
+000002d4 : e59c0004 : .... : LDR     r0, [r12, #4]
+000002d8 : e3300000 : ..0. : TEQ     r0, #0
+000002dc : 0a000004 : .... : BEQ     &000002f4
+000002e0 : e1300005 : ..0. : TEQ     r0, r5
+000002e4 : 0a000002 : .... : BEQ     &000002f4
+000002e8 : e1a05000 : .P.. : MOV     r5, r0
+000002ec : eb000100 : .... : BL      &000006f4                 ; -> Function: swi_forget
+000002f0 : eafffff7 : .... : B       &000002d4
+000002f4 : e3a05000 : .P.. : MOV     r5, #0
+000002f8 : e59c0000 : .... : LDR     r0, [r12]
+000002fc : e3300000 : ..0. : TEQ     r0, #0
+00000300 : 0a000004 : .... : BEQ     &00000318
+00000304 : e1300005 : ..0. : TEQ     r0, r5
+00000308 : 0a000002 : .... : BEQ     &00000318
+0000030c : e1a05000 : .P.. : MOV     r5, r0
+00000310 : eb0000f7 : .... : BL      &000006f4                 ; -> Function: swi_forget
+00000314 : eafffff7 : .... : B       &000002f8
+00000318 : e8bd8c3f : ?... : POP     {r0, r1, r2, r3, r4, r5, r10, r11, pc}
+0000031c : 5f637673 : svc_ : SWIPL   &637673
+00000320 : 706d6977 : wimp : RSBVC   r6, sp, r7, ROR r9
+00000324 : 736f6c63 : clos : Undefined instruction
+00000328 : 776f6465 : edow : STRBVC  r6, [pc, -r5, ROR #8]!
+0000032c : 0a29006e : n.). : BEQ     &00a404ec
+00000330 : ff000014 : .... : Undefined instruction
+00000334 : e92d4c03 : .L-. : PUSH    {r0, r1, r10, r11, lr}    ; Function: svc_wimpclosedown
+00000338 : e3500000 : ..P. : CMP     r0, #0
+0000033c : 18fd8c03 : .... : LDMNEIA sp!, {r0, r1, r10, r11, pc} ^
+00000340 : e5900ff8 : .... : LDR     r0, [r0, #&ff8]
+00000344 : e59ca004 : .... : LDR     r10, [r12, #4]
+00000348 : e35a0000 : ..Z. : CMP     r10, #0
+0000034c : 0a000003 : .... : BEQ     &00000360
+00000350 : e59ae00c : .... : LDR     lr, [r10, #&c]
+00000354 : e15e0000 : ..^. : CMP     lr, r0
+00000358 : 159aa000 : .... : LDRNE   r10, [r10]
+0000035c : 1afffff9 : .... : BNE     &00000348
+00000360 : e33a0000 : ..:. : TEQ     r10, #0
+00000364 : 0a000003 : .... : BEQ     &00000378
+00000368 : e1a0000a : .... : MOV     r0, r10
+0000036c : eb0000e0 : .... : BL      &000006f4                 ; -> Function: swi_forget
+00000370 : e3a00000 : .... : MOV     r0, #0
+00000374 : eafffff1 : .... : B       &00000340
+00000378 : e3a00000 : .... : MOV     r0, #0
+0000037c : e5900ff8 : .... : LDR     r0, [r0, #&ff8]
+00000380 : e59cb000 : .... : LDR     r11, [r12]
+00000384 : e35b0000 : ..[. : CMP     r11, #0
+00000388 : 0a000003 : .... : BEQ     &0000039c
+0000038c : e59be024 : $... : LDR     lr, [r11, #&24]
+00000390 : e15e0000 : ..^. : CMP     lr, r0
+00000394 : 159bb000 : .... : LDRNE   r11, [r11]
+00000398 : 1afffff9 : .... : BNE     &00000384
+0000039c : e33b0000 : ..;. : TEQ     r11, #0
+000003a0 : 08fd8c03 : .... : LDMEQIA sp!, {r0, r1, r10, r11, pc} ^
+000003a4 : e1a0000b : .... : MOV     r0, r11
+000003a8 : eb0000d1 : .... : BL      &000006f4                 ; -> Function: swi_forget
+000003ac : eafffff1 : .... : B       &00000378
+000003b0 : 5f697773 : swi_ : SWIPL   &697773
+000003b4 : 6e6e6f63 : conn : CDPVS   p15, #6, c6, c14, c3, #3
+000003b8 : 74746365 : ectt : LDRBTVC r6, [r4], #-&365
+000003bc : 736f686f : ohos : Undefined instruction
+000003c0 : 30230074 : t.#0 : EORLO   r0, r3, r4, ROR r0
+000003c4 : ff000014 : .... : Undefined instruction
+000003c8 : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_connecttohost
+000003cc : e59c2000 : . .. : LDR     r2, [r12]
+000003d0 : e3a00028 : (... : MOV     r0, #&28                  ; #40  = '('
+000003d4 : eb0004a6 : .... : BL      &00001674                 ; -> Function: claim
+000003d8 : e1a0b000 : .... : MOV     r11, r0
+000003dc : e58b2000 : . .. : STR     r2, [r11]
+000003e0 : e58cb000 : .... : STR     r11, [r12]
+000003e4 : e59f056c : l... : LDR     r0, &00000958
+000003e8 : e58b0004 : .... : STR     r0, [r11, #4]
+000003ec : e3a00c01 : .... : MOV     r0, #&100                 ; #256 = bit 8
+000003f0 : e58b001c : .... : STR     r0, [r11, #&1c]
+000003f4 : eb00049e : .... : BL      &00001674                 ; -> Function: claim
+000003f8 : e58b0018 : .... : STR     r0, [r11, #&18]
+000003fc : e3a00000 : .... : MOV     r0, #0
+00000400 : e58b0020 :  ... : STR     r0, [r11, #&20]
+00000404 : e5902ff8 : ./.. : LDR     r2, [r0, #&ff8]
+00000408 : e58b2024 : $ .. : STR     r2, [r11, #&24]
+0000040c : e59d0000 : .... : LDR     r0, [sp]
+00000410 : eb0004a9 : .... : BL      &000016bc                 ; -> Function: strdup
+00000414 : e58b000c : .... : STR     r0, [r11, #&c]
+00000418 : e58b1010 : .... : STR     r1, [r11, #&10]
+0000041c : e3e00000 : .... : MVN     r0, #0                    ; #&ffffffff = -1
+00000420 : e58b0008 : .... : STR     r0, [r11, #8]
+00000424 : e3a00001 : .... : MOV     r0, #1
+00000428 : e58b0014 : .... : STR     r0, [r11, #&14]
+0000042c : eb000006 : .... : BL      &0000044c                 ; -> Function: checksockets
+00000430 : e58db000 : .... : STR     r11, [sp]
+00000434 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000438 : 63656863 : chec : Undefined instruction
+0000043c : 636f736b : ksoc : Undefined instruction
+00000440 : 7374656b : kets : CMNVC   r4, #&1ac00000            ; #-448790528 = 3668<<20
+00000444 : 72652000 : . er : RSBVC   r2, r5, #0
+00000448 : ff000010 : .... : Undefined instruction
+0000044c : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: checksockets
+00000450 : e59cb000 : .... : LDR     r11, [r12]
+00000454 : e33b0000 : ..;. : TEQ     r11, #0
+00000458 : 08fd883f : ?... : LDMEQIA sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+0000045c : e59b0014 : .... : LDR     r0, [r11, #&14]
+00000460 : e3300001 : ..0. : TEQ     r0, #1
+00000464 : 1a000027 : '... : BNE     &00000508
+00000468 : e59b000c : .... : LDR     r0, [r11, #&c]
+0000046c : ef066001 : .`.. : SWI     XResolver_GetHost
+00000470 : 63e00002 : ...c : MVNVS   r0, #2                    ; #&fffffffd = -3
+00000474 : e3310000 : ..1. : TEQ     r1, #0
+00000478 : 03e00002 : .... : MVNEQ   r0, #2                    ; #&fffffffd = -3
+0000047c : e3500000 : ..P. : CMP     r0, #0
+00000480 : b58b0014 : .... : STRLT   r0, [r11, #&14]
+00000484 : ba000043 : C... : BLT     &00000598
+00000488 : e5913010 : .0.. : LDR     r3, [r1, #&10]
+0000048c : e5933000 : .0.. : LDR     r3, [r3]
+00000490 : e5933000 : .0.. : LDR     r3, [r3]
+00000494 : e3a00002 : .... : MOV     r0, #2
+00000498 : e3a01001 : .... : MOV     r1, #1
+0000049c : e3a02000 : . .. : MOV     r2, #0
+000004a0 : ef061200 : .... : SWI     XSocket_Creat
+000004a4 : 63e00003 : ...c : MVNVS   r0, #3                    ; #&fffffffc = -4
+000004a8 : 658b0014 : ...e : STRVS   r0, [r11, #&14]
+000004ac : 6a000039 : 9..j : BVS     &00000598
+000004b0 : e58b0008 : .... : STR     r0, [r11, #8]
+000004b4 : e1a04000 : .@.. : MOV     r4, r0
+000004b8 : e3a01002 : .... : MOV     r1, #2
+000004bc : e58b1014 : .... : STR     r1, [r11, #&14]
+000004c0 : e59f1488 : .... : LDR     r1, &00000950
+000004c4 : e28f20d8 : . .. : ADR     r2, &000005a4             ; -> "\xff\xff\xff\xffhtonl"
+000004c8 : ef061212 : .... : SWI     XSocket_Ioctl
+000004cc : e59f1480 : .... : LDR     r1, &00000954
+000004d0 : e1a00004 : .... : MOV     r0, r4
+000004d4 : e28f20c8 : . .. : ADR     r2, &000005a4             ; -> "\xff\xff\xff\xffhtonl"
+000004d8 : ef061212 : .... : SWI     XSocket_Ioctl
+000004dc : e59b0010 : .... : LDR     r0, [r11, #&10]
+000004e0 : eb00003c : <... : BL      &000005d8                 ; -> Function: htons
+000004e4 : e1a00800 : .... : MOV     r0, r0, LSL #16
+000004e8 : e2800002 : .... : ADD     r0, r0, #2
+000004ec : e28c1f02 : .... : ADD     r1, r12, #2, #30
+000004f0 : e5810000 : .... : STR     r0, [r1]
+000004f4 : e5813004 : .0.. : STR     r3, [r1, #4]
+000004f8 : e1a00004 : .... : MOV     r0, r4
+000004fc : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000500 : ef061204 : .... : SWI     XSocket_Connect
+00000504 : ea000005 : .... : B       &00000520
+00000508 : e3300002 : ..0. : TEQ     r0, #2
+0000050c : 1a000012 : .... : BNE     &0000055c
+00000510 : e59b0008 : .... : LDR     r0, [r11, #8]
+00000514 : e3a02001 : . .. : MOV     r2, #1
+00000518 : e3a03082 : .0.. : MOV     r3, #&82                  ; #130
+0000051c : ef061205 : .... : SWI     XSocket_Recv
+00000520 : 6a000498 : ...j : BVS     &00001788
+00000524 : e3a01004 : .... : MOV     r1, #4
+00000528 : e58b1014 : .... : STR     r1, [r11, #&14]
+0000052c : ea000019 : .... : B       &00000598
+00000530 : e5900000 : .... : LDR     r0, [r0]
+00000534 : e3300025 : %.0. : TEQ     r0, #&25                  ; #37  = '%'
+00000538 : 0afffff9 : .... : BEQ     &00000524
+0000053c : e3300032 : 2.0. : TEQ     r0, #&32                  ; #50  = '2'
+00000540 : 13300033 : 3.0. : TEQNE   r0, #&33                  ; #51  = '3'
+00000544 : 1330003c : <.0. : TEQNE   r0, #&3c                  ; #60  = '<'
+00000548 : 03e01004 : .... : MVNEQ   r1, #4                    ; #&fffffffb = -5
+0000054c : 058b1014 : .... : STREQ   r1, [r11, #&14]
+00000550 : e330003d : =.0. : TEQ     r0, #&3d                  ; #61  = '='
+00000554 : 03e01005 : .... : MVNEQ   r1, #5                    ; #&fffffffa = -6
+00000558 : 058b1014 : .... : STREQ   r1, [r11, #&14]
+0000055c : e3300004 : ..0. : TEQ     r0, #4
+00000560 : 1a00000c : .... : BNE     &00000598
+00000564 : e59b000c : .... : LDR     r0, [r11, #&c]
+00000568 : e3300000 : ..0. : TEQ     r0, #0
+0000056c : 1a000009 : .... : BNE     &00000598
+00000570 : e59b0008 : .... : LDR     r0, [r11, #8]
+00000574 : e28c1f02 : .... : ADD     r1, r12, #2, #30
+00000578 : e28f2020 :   .. : ADR     r2, &000005a0             ; -> [&00000010, &ffffffff, &6e6f7468, &2020006c]
+0000057c : ef06120e : .... : SWI     XSocket_Getpeername
+00000580 : 6a000004 : ...j : BVS     &00000598
+00000584 : e5910000 : .... : LDR     r0, [r1]
+00000588 : e1a00820 :  ... : MOV     r0, r0, LSR #16
+0000058c : eb000011 : .... : BL      &000005d8                 ; -> Function: htons
+00000590 : e58b0010 : .... : STR     r0, [r11, #&10]
+00000594 : eb000373 : s... : BL      &00001368                 ; -> Function: lookupaddress
+00000598 : e59bb000 : .... : LDR     r11, [r11]
+0000059c : eaffffac : .... : B       &00000454
+000005a0 : 00000010 : .... : ANDEQ   r0, r0, r0, LSL r0
+000005a4 : ffffffff : .... : Undefined instruction
+000005a8 : 6e6f7468 : hton : CDPVS   p4, #6, c7, c15, c8, #3
+000005ac : 2020006c : l.   : EORHS   r0, r0, r12, RRX
+000005b0 : ff000008 : .... : Undefined instruction
+000005b4 : e92d4000 : .@-. : STMDB   sp!, {lr}                 ; Function: htonl
+000005b8 : e020e860 : `. . : EOR     lr, r0, r0, ROR #16
+000005bc : e3cee8ff : .... : BIC     lr, lr, #&ff0000          ; #16711680 = 255<<16
+000005c0 : e1a00460 : `... : MOV     r0, r0, ROR #8
+000005c4 : e0200421 : !. . : EOR     r0, r0, r1, LSR #8
+000005c8 : e8fd8000 : .... : LDMIA   sp!, {pc} ^
+000005cc : 6e6f7468 : hton : CDPVS   p4, #6, c7, c15, c8, #3
+000005d0 : 5b2c0073 : s.,[ : BLPL    &00b007a4
+000005d4 : ff000008 : .... : Undefined instruction
+000005d8 : e92d4004 : .@-. : PUSH    {r2, lr}                  ; Function: htons
+000005dc : e3a020ff : . .. : MOV     r2, #&ff                  ; #255
+000005e0 : e002e420 :  ... : AND     lr, r2, r0, LSR #8
+000005e4 : e0000002 : .... : AND     r0, r0, r2
+000005e8 : e18e0400 : .... : ORR     r0, lr, r0, LSL #8
+000005ec : e8fd8004 : .... : LDMIA   sp!, {r2, pc} ^
+000005f0 : 5f727265 : err_ : SWIPL   &727265
+000005f4 : 64646162 : badd : STRBTVS r6, [r4], #-&162
+000005f8 : 72637365 : escr : RSBVC   r7, r3, #&94000001        ; #-1811939327
+000005fc : 6f747069 : ipto : SWIVS   &747069
+00000600 : 39300072 : r.09 : LDMDBLO r0!, {r1, r4, r5, r6}
+00000604 : ff000014 : .... : Undefined instruction
+00000608 : e28f0000 : .... : ADR     r0, &00000610             ; Function: err_baddescriptor  ; -> [&00000000, &20646142, &636f5345, &2074656b]
+0000060c : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+00000610 : 00000000 : .... : ANDEQ   r0, r0, r0
+00000614 : 20646142 : Bad  : RSBHS   r6, r4, r2, ASR #2
+00000618 : 636f5345 : ESoc : Undefined instruction
+0000061c : 2074656b : ket  : RSBSHS  r6, r4, r11, ROR #10
+00000620 : 646e6168 : hand : STRBTVS r6, [lr], #-&168
+00000624 : 2000656c : le.  : ANDHS   r6, r0, r12, ROR #10
+00000628 : 5f727265 : err_ : SWIPL   &727265
+0000062c : 63746f6e : notc : CMNVS   r4, #&1b8                 ; #-440
+00000630 : 656e6e6f : onne : STRBVS  r6, [lr, #-&e6f]!
+00000634 : 64657463 : cted : STRBTVS r7, [r5], #-&463
+00000638 : 73616c00 : .las : Undefined instruction
+0000063c : ff000014 : .... : Undefined instruction
+00000640 : e28f0000 : .... : ADR     r0, &00000648             ; Function: err_notconnected  ; -> [&00000000, &636f5345, &2074656b, &20736168]
+00000644 : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+00000648 : 00000000 : .... : ANDEQ   r0, r0, r0
+0000064c : 636f5345 : ESoc : Undefined instruction
+00000650 : 2074656b : ket  : RSBSHS  r6, r4, r11, ROR #10
+00000654 : 20736168 : has  : RSBSHS  r6, r3, r8, ROR #2
+00000658 : 20746579 : yet  : RSBSHS  r6, r4, r9, ROR r5
+0000065c : 63206f74 : to c : Undefined instruction
+00000660 : 656e6e6f : onne : STRBVS  r6, [lr, #-&e6f]!
+00000664 : 20007463 : ct.  : ANDHS   r7, r0, r3, ROR #8
+00000668 : 5f727265 : err_ : SWIPL   &727265
+0000066c : 6c746f6e : notl : LDCLVS  p15, c6, [r4], #-&1b8
+00000670 : 65747369 : iste : LDRBVS  r7, [r4, #-&369]!
+00000674 : 676e696e : ning : STRBVS  r6, [lr, -lr, ROR #18]!
+00000678 : 67616d00 : .mag : STRBVS  r6, [r1, -r0, LSL #26]!
+0000067c : ff000014 : .... : Undefined instruction
+00000680 : e28f0000 : .... : ADR     r0, &00000688             ; Function: err_notlistening  ; -> [&00000000, &636f5345, &2074656b, &6e207369]
+00000684 : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+00000688 : 00000000 : .... : ANDEQ   r0, r0, r0
+0000068c : 636f5345 : ESoc : Undefined instruction
+00000690 : 2074656b : ket  : RSBSHS  r6, r4, r11, ROR #10
+00000694 : 6e207369 : is n : CDPVS   p3, #2, c7, c0, c9, #3
+00000698 : 6c20746f : ot l : STCVS   p4, c7, [r0], #-&1bc
+0000069c : 65747369 : iste : LDRBVS  r7, [r4, #-&369]!
+000006a0 : 676e696e : ning : STRBVS  r6, [lr, -lr, ROR #18]!
+000006a4 : 31372000 : . 71 : TEQLO   r7, r0
+000006a8 : 5f697773 : swi_ : SWIPL   &697773
+000006ac : 63656863 : chec : Undefined instruction
+000006b0 : 6174736b : ksta : CMNVS   r4, r11, ROR #6
+000006b4 : 74006574 : te.t : STRVC   r6, [r0], #-&574
+000006b8 : ff000010 : .... : Undefined instruction
+000006bc : e92d483e : >H-. : PUSH    {r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_checkstate
+000006c0 : e1a0b000 : .... : MOV     r11, r0
+000006c4 : e59b0004 : .... : LDR     r0, [r11, #4]
+000006c8 : e59fe288 : .... : LDR     lr, &00000958
+000006cc : e15e0000 : ..^. : CMP     lr, r0
+000006d0 : 18bd483e : >H.. : POPNE   {r1, r2, r3, r4, r5, r11, lr}
+000006d4 : 1affffcb : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+000006d8 : ebffff5b : [... : BL      &0000044c                 ; -> Function: checksockets
+000006dc : e59b0014 : .... : LDR     r0, [r11, #&14]
+000006e0 : e8fd883e : >... : LDMIA   sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+000006e4 : 5f697773 : swi_ : SWIPL   &697773
+000006e8 : 67726f66 : forg : LDRBVS  r6, [r2, -r6, ROR #30]!
+000006ec : 20007465 : et.  : ANDHS   r7, r0, r5, ROR #8
+000006f0 : ff00000c : .... : Undefined instruction
+000006f4 : e92d4c3f : ?L-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, r11, lr}  ; Function: swi_forget
+000006f8 : e5901004 : .... : LDR     r1, [r0, #4]
+000006fc : e59fe254 : T... : LDR     lr, &00000958
+00000700 : e15e0001 : ..^. : CMP     lr, r1
+00000704 : 0a000015 : .... : BEQ     &00000760
+00000708 : e59fe24c : L... : LDR     lr, &0000095c
+0000070c : e15e0001 : ..^. : CMP     lr, r1
+00000710 : 0a000001 : .... : BEQ     &0000071c
+00000714 : e8bd4c3f : ?L.. : POP     {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+00000718 : eaffffba : .... : B       &00000608                 ; -> Function: err_baddescriptor
+0000071c : e1a0a000 : .... : MOV     r10, r0
+00000720 : e28c5f01 : ._.. : ADD     r5, r12, #1, #30
+00000724 : e5954000 : .@.. : LDR     r4, [r5]
+00000728 : e3340000 : ..4. : TEQ     r4, #0
+0000072c : 08bd4c3f : ?L.. : POPEQ   {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+00000730 : 0affffb4 : .... : BEQ     &00000608                 ; -> Function: err_baddescriptor
+00000734 : e134000a : ..4. : TEQ     r4, r10
+00000738 : 0a000001 : .... : BEQ     &00000744
+0000073c : e2845000 : .P.. : ADD     r5, r4, #0
+00000740 : eafffff7 : .... : B       &00000724
+00000744 : e59a3000 : .0.. : LDR     r3, [r10]
+00000748 : e5853000 : .0.. : STR     r3, [r5]
+0000074c : e3a03000 : .0.. : MOV     r3, #0
+00000750 : e58a3004 : .0.. : STR     r3, [r10, #4]
+00000754 : e1a0000a : .... : MOV     r0, r10
+00000758 : eb0003cf : .... : BL      &0000169c                 ; -> Function: release
+0000075c : e8fd8c3f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r10, r11, pc} ^
+00000760 : e1a0b000 : .... : MOV     r11, r0
+00000764 : e28c5000 : .P.. : ADD     r5, r12, #0
+00000768 : e5954000 : .@.. : LDR     r4, [r5]
+0000076c : e3340000 : ..4. : TEQ     r4, #0
+00000770 : 08bd4c3f : ?L.. : POPEQ   {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+00000774 : 0affffa3 : .... : BEQ     &00000608                 ; -> Function: err_baddescriptor
+00000778 : e134000b : ..4. : TEQ     r4, r11
+0000077c : 0a000001 : .... : BEQ     &00000788
+00000780 : e2845000 : .P.. : ADD     r5, r4, #0
+00000784 : eafffff7 : .... : B       &00000768
+00000788 : e59b3000 : .0.. : LDR     r3, [r11]
+0000078c : e5853000 : .0.. : STR     r3, [r5]
+00000790 : e3a03000 : .0.. : MOV     r3, #0
+00000794 : e58b3004 : .0.. : STR     r3, [r11, #4]
+00000798 : e59b000c : .... : LDR     r0, [r11, #&c]
+0000079c : e1b00000 : .... : MOVS    r0, r0
+000007a0 : 1b0003bd : .... : BLNE    &0000169c                 ; -> Function: release
+000007a4 : e59b0018 : .... : LDR     r0, [r11, #&18]
+000007a8 : e1b00000 : .... : MOVS    r0, r0
+000007ac : 1b0003ba : .... : BLNE    &0000169c                 ; -> Function: release
+000007b0 : e59b0008 : .... : LDR     r0, [r11, #8]
+000007b4 : e3700001 : ..p. : CMN     r0, #1                    ; #-1
+000007b8 : 1f061210 : .... : SWINE   XSocket_Close
+000007bc : e1a0000b : .... : MOV     r0, r11
+000007c0 : eb0003b5 : .... : BL      &0000169c                 ; -> Function: release
+000007c4 : e8fd8c3f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r10, r11, pc} ^
+000007c8 : 5f697773 : swi_ : SWIPL   &697773
+000007cc : 646e6573 : send : STRBTVS r6, [lr], #-&573
+000007d0 : 656e696c : line : STRBVS  r6, [lr, #-&96c]!
+000007d4 : 20202000 : .    : EORHS   r2, r0, r0
+000007d8 : ff000010 : .... : Undefined instruction
+000007dc : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_sendline
+000007e0 : e1a0b000 : .... : MOV     r11, r0
+000007e4 : e59b0004 : .... : LDR     r0, [r11, #4]
+000007e8 : e59fe168 : h... : LDR     lr, &00000958
+000007ec : e15e0000 : ..^. : CMP     lr, r0
+000007f0 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+000007f4 : 1affff83 : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+000007f8 : e59b0014 : .... : LDR     r0, [r11, #&14]
+000007fc : e3300004 : ..0. : TEQ     r0, #4
+00000800 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00000804 : 1affff8d : .... : BNE     &00000640                 ; -> Function: err_notconnected
+00000808 : e3120004 : .... : TST     r2, #4
+0000080c : 03a0e000 : .... : MOVEQ   lr, #0
+00000810 : 13a0e00d : .... : MOVNE   lr, #&d                   ; #13
+00000814 : e1a03001 : .0.. : MOV     r3, r1
+00000818 : e4d30001 : .... : LDRB    r0, [r3], #1
+0000081c : e130000e : ..0. : TEQ     r0, lr
+00000820 : 1afffffc : .... : BNE     &00000818
+00000824 : e0433001 : .0C. : SUB     r3, r3, r1
+00000828 : e2435001 : .PC. : SUB     r5, r3, #1
+0000082c : e3120001 : .... : TST     r2, #1
+00000830 : 02833001 : .0.. : ADDEQ   r3, r3, #1
+00000834 : e3120002 : .... : TST     r2, #2
+00000838 : 12433001 : .0C. : SUBNE   r3, r3, #1
+0000083c : e1b03003 : .0.. : MOVS    r3, r3
+00000840 : 0a000013 : .... : BEQ     &00000894
+00000844 : e1a00003 : .... : MOV     r0, r3
+00000848 : eb000389 : .... : BL      &00001674                 ; -> Function: claim
+0000084c : e1a04000 : .@.. : MOV     r4, r0
+00000850 : e2555001 : .PU. : SUBS    r5, r5, #1
+00000854 : a4d10001 : .... : LDRBGE  r0, [r1], #1
+00000858 : a4c40001 : .... : STRBGE  r0, [r4], #1
+0000085c : aafffffb : .... : BGE     &00000850
+00000860 : e3120001 : .... : TST     r2, #1
+00000864 : 03a0000d : .... : MOVEQ   r0, #&d                   ; #13
+00000868 : 04c40001 : .... : STRBEQ  r0, [r4], #1
+0000086c : e3120002 : .... : TST     r2, #2
+00000870 : 03a0000a : .... : MOVEQ   r0, #&a
+00000874 : 04c40001 : .... : STRBEQ  r0, [r4], #1
+00000878 : e0444003 : .@D. : SUB     r4, r4, r3
+0000087c : e59b0008 : .... : LDR     r0, [r11, #8]
+00000880 : e1a01004 : .... : MOV     r1, r4
+00000884 : e1a02003 : . .. : MOV     r2, r3
+00000888 : ef061214 : .... : SWI     XSocket_Write
+0000088c : e1a00004 : .... : MOV     r0, r4
+00000890 : eb000381 : .... : BL      &0000169c                 ; -> Function: release
+00000894 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000898 : 66667562 : buff : STRBTVS r7, [r6], -r2, ROR #10
+0000089c : 665f7265 : er_f : LDRBVS  r7, &000008a4
+000008a0 : 006c6c69 : ill. : RSBEQ   r6, r12, r9, ROR #24
+000008a4 : ff00000c : .... : Undefined instruction
+000008a8 : e92d403f : ?@-. : PUSH    {r0, r1, r2, r3, r4, r5, lr}  ; Function: buffer_fill
+000008ac : e59b1020 :  ... : LDR     r1, [r11, #&20]
+000008b0 : e3510a01 : ..Q. : CMP     r1, #&1000                ; #4096 = bit 12
+000008b4 : 0a000022 : "... : BEQ     &00000944
+000008b8 : e59b0008 : .... : LDR     r0, [r11, #8]
+000008bc : e59f1084 : .... : LDR     r1, &00000948
+000008c0 : e28f2084 : . .. : ADR     r2, &0000094c             ; -> [&00000001, &8004667e, &8004667d, &f1eff0ef]
+000008c4 : ef061212 : .... : SWI     XSocket_Ioctl
+000008c8 : 63a00000 : ...c : MOVVS   r0, #0
+000008cc : 759f0078 : x..u : LDRVC   r0, &0000094c
+000008d0 : e3300000 : ..0. : TEQ     r0, #0
+000008d4 : 0a00001a : .... : BEQ     &00000944
+000008d8 : e59b2020 :   .. : LDR     r2, [r11, #&20]
+000008dc : e0823000 : .0.. : ADD     r3, r2, r0
+000008e0 : e59b101c : .... : LDR     r1, [r11, #&1c]
+000008e4 : e1530001 : ..S. : CMP     r3, r1
+000008e8 : ba000009 : .... : BLT     &00000914
+000008ec : e59b101c : .... : LDR     r1, [r11, #&1c]
+000008f0 : e1a01081 : .... : MOV     r1, r1, LSL #1
+000008f4 : e3510a01 : ..Q. : CMP     r1, #&1000                ; #4096 = bit 12
+000008f8 : ca000005 : .... : BGT     &00000914
+000008fc : e59b0018 : .... : LDR     r0, [r11, #&18]
+00000900 : eb000351 : Q... : BL      &0000164c                 ; -> Function: extend
+00000904 : 6a000002 : ...j : BVS     &00000914
+00000908 : e58b101c : .... : STR     r1, [r11, #&1c]
+0000090c : e58b0018 : .... : STR     r0, [r11, #&18]
+00000910 : eafffff3 : .... : B       &000008e4
+00000914 : e59b101c : .... : LDR     r1, [r11, #&1c]
+00000918 : e1530001 : ..S. : CMP     r3, r1
+0000091c : c1a03001 : .0.. : MOVGT   r3, r1
+00000920 : e59b1018 : .... : LDR     r1, [r11, #&18]
+00000924 : e0811002 : .... : ADD     r1, r1, r2
+00000928 : e59b0008 : .... : LDR     r0, [r11, #8]
+0000092c : e0432002 : . C. : SUB     r2, r3, r2
+00000930 : ef061213 : .... : SWI     XSocket_Read
+00000934 : 63a00000 : ...c : MOVVS   r0, #0
+00000938 : e59b1020 :  ... : LDR     r1, [r11, #&20]
+0000093c : e0811000 : .... : ADD     r1, r1, r0
+00000940 : e58b1020 :  ... : STR     r1, [r11, #&20]
+00000944 : e8fd803f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, pc} ^
+00000948 : 4004667f : .f.@ : ANDMI   r6, r4, pc, ROR r6
+0000094c : 00000001 : .... : ANDEQ   r0, r0, r1
+00000950 : 8004667e : ~f.. : ANDHI   r6, r4, lr, ROR r6
+00000954 : 8004667d : }f.. : ANDHI   r6, r4, sp, ROR r6
+00000958 : f1eff0ef : .... : Undefined instruction
+0000095c : beeffeed : .... : CDPLT   p14, #&e, c15, c15, c13, #7
+00000960 : 66667562 : buff : STRBTVS r7, [r6], -r2, ROR #10
+00000964 : 6c5f7265 : er_l : MRRCVS  p2, #6, r7, pc, c5
+00000968 : 0065736f : ose. : RSBEQ   r7, r5, pc, ROR #6
+0000096c : ff00000c : .... : Undefined instruction
+00000970 : e92d403f : ?@-. : PUSH    {r0, r1, r2, r3, r4, r5, lr}  ; Function: buffer_lose
+00000974 : e59b1020 :  ... : LDR     r1, [r11, #&20]
+00000978 : e0512000 : . Q. : SUBS    r2, r1, r0
+0000097c : d3a00000 : .... : MOVLE   r0, #0
+00000980 : d58b0020 :  ... : STRLE   r0, [r11, #&20]
+00000984 : d8fd803f : ?... : LDMLEIA sp!, {r0, r1, r2, r3, r4, r5, pc} ^
+00000988 : e59b3018 : .0.. : LDR     r3, [r11, #&18]
+0000098c : e0834000 : .@.. : ADD     r4, r3, r0
+00000990 : e58b2020 :   .. : STR     r2, [r11, #&20]
+00000994 : e2522001 : . R. : SUBS    r2, r2, #1
+00000998 : 48fd803f : ?..H : LDMMIIA sp!, {r0, r1, r2, r3, r4, r5, pc} ^
+0000099c : e4d40001 : .... : LDRB    r0, [r4], #1
+000009a0 : e4c30001 : .... : STRB    r0, [r3], #1
+000009a4 : eafffffa : .... : B       &00000994
+000009a8 : 5f697773 : swi_ : SWIPL   &697773
+000009ac : 64616572 : read : STRBTVS r6, [r1], #-&572
+000009b0 : 656e696c : line : STRBVS  r6, [lr, #-&96c]!
+000009b4 : 2a2a2a00 : .*** : BHS     &00a8b1bc
+000009b8 : ff000010 : .... : Undefined instruction
+000009bc : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_readline
+000009c0 : e1a0b000 : .... : MOV     r11, r0
+000009c4 : e59b0004 : .... : LDR     r0, [r11, #4]
+000009c8 : e51fe078 : x... : LDR     lr, &00000958
+000009cc : e15e0000 : ..^. : CMP     lr, r0
+000009d0 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+000009d4 : 1affff0b : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+000009d8 : e59b0014 : .... : LDR     r0, [r11, #&14]
+000009dc : e3300004 : ..0. : TEQ     r0, #4
+000009e0 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+000009e4 : 1affff15 : .... : BNE     &00000640                 ; -> Function: err_notconnected
+000009e8 : e3a05001 : .P.. : MOV     r5, #1
+000009ec : e59b1020 :  ... : LDR     r1, [r11, #&20]
+000009f0 : e59b4018 : .@.. : LDR     r4, [r11, #&18]
+000009f4 : e203e003 : .... : AND     lr, r3, #3
+000009f8 : e33e0003 : ..>. : TEQ     lr, #3
+000009fc : 1a000006 : .... : BNE     &00000a1c
+00000a00 : e2511001 : ..Q. : SUBS    r1, r1, #1
+00000a04 : 4a000032 : 2..J : BMI     &00000ad4
+00000a08 : e4d40001 : .... : LDRB    r0, [r4], #1
+00000a0c : e330000d : ..0. : TEQ     r0, #&d                   ; #13
+00000a10 : 1330000a : ..0. : TEQNE   r0, #&a
+00000a14 : 1afffff9 : .... : BNE     &00000a00
+00000a18 : ea000014 : .... : B       &00000a70
+00000a1c : e2511001 : ..Q. : SUBS    r1, r1, #1
+00000a20 : 4a00002b : +..J : BMI     &00000ad4
+00000a24 : e4d40001 : .... : LDRB    r0, [r4], #1
+00000a28 : e3130001 : .... : TST     r3, #1
+00000a2c : 1a000009 : .... : BNE     &00000a58
+00000a30 : e330000d : ..0. : TEQ     r0, #&d                   ; #13
+00000a34 : 1afffff8 : .... : BNE     &00000a1c
+00000a38 : e3130002 : .... : TST     r3, #2
+00000a3c : 1a00000b : .... : BNE     &00000a70
+00000a40 : e3310000 : ..1. : TEQ     r1, #0
+00000a44 : 0a000022 : "... : BEQ     &00000ad4
+00000a48 : e5d40000 : .... : LDRB    r0, [r4]
+00000a4c : e330000a : ..0. : TEQ     r0, #&a
+00000a50 : 1afffff1 : .... : BNE     &00000a1c
+00000a54 : ea000005 : .... : B       &00000a70
+00000a58 : e3130002 : .... : TST     r3, #2
+00000a5c : 1a000002 : .... : BNE     &00000a6c
+00000a60 : e330000a : ..0. : TEQ     r0, #&a
+00000a64 : 1affffec : .... : BNE     &00000a1c
+00000a68 : ea000000 : .... : B       &00000a70
+00000a6c : eaffffea : .... : B       &00000a1c
+00000a70 : e59b1018 : .... : LDR     r1, [r11, #&18]
+00000a74 : e0445001 : .PD. : SUB     r5, r4, r1
+00000a78 : e1550002 : ..U. : CMP     r5, r2
+00000a7c : ca000010 : .... : BGT     &00000ac4
+00000a80 : e2444001 : .@D. : SUB     r4, r4, #1
+00000a84 : e59d2004 : . .. : LDR     r2, [sp, #4]
+00000a88 : e1310004 : ..1. : TEQ     r1, r4
+00000a8c : 0a000002 : .... : BEQ     &00000a9c
+00000a90 : e4d10001 : .... : LDRB    r0, [r1], #1
+00000a94 : e4c20001 : .... : STRB    r0, [r2], #1
+00000a98 : eafffffa : .... : B       &00000a88
+00000a9c : e3130004 : .... : TST     r3, #4
+00000aa0 : 03a00000 : .... : MOVEQ   r0, #0
+00000aa4 : 13a0000d : .... : MOVNE   r0, #&d                   ; #13
+00000aa8 : e4c20001 : .... : STRB    r0, [r2], #1
+00000aac : e58d5008 : .P.. : STR     r5, [sp, #8]
+00000ab0 : e213e003 : .... : ANDS    lr, r3, #3
+00000ab4 : 02855001 : .P.. : ADDEQ   r5, r5, #1
+00000ab8 : e1a00005 : .... : MOV     r0, r5
+00000abc : ebffffab : .... : BL      &00000970                 ; -> Function: buffer_lose
+00000ac0 : ea00000d : .... : B       &00000afc
+00000ac4 : e3a01000 : .... : MOV     r1, #0
+00000ac8 : e58d1004 : .... : STR     r1, [sp, #4]
+00000acc : e58d5008 : .P.. : STR     r5, [sp, #8]
+00000ad0 : ea000009 : .... : B       &00000afc
+00000ad4 : e2555001 : .PU. : SUBS    r5, r5, #1
+00000ad8 : 4a000004 : ...J : BMI     &00000af0
+00000adc : e59b1020 :  ... : LDR     r1, [r11, #&20]
+00000ae0 : ebffff70 : p... : BL      &000008a8                 ; -> Function: buffer_fill
+00000ae4 : e59b0020 :  ... : LDR     r0, [r11, #&20]
+00000ae8 : e1500001 : ..P. : CMP     r0, r1
+00000aec : 1affffbe : .... : BNE     &000009ec
+00000af0 : e3a00000 : .... : MOV     r0, #0
+00000af4 : e58d0004 : .... : STR     r0, [sp, #4]
+00000af8 : e58d0008 : .... : STR     r0, [sp, #8]
+00000afc : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000b00 : 5f697773 : swi_ : SWIPL   &697773
+00000b04 : 646e6573 : send : STRBTVS r6, [lr], #-&573
+00000b08 : 61746164 : data : CMNVS   r4, r4, ROR #2
+00000b0c : 30343700 : .740 : EORSLO  r3, r4, r0, LSL #14
+00000b10 : ff000010 : .... : Undefined instruction
+00000b14 : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_senddata
+00000b18 : e1a0b000 : .... : MOV     r11, r0
+00000b1c : e59b0004 : .... : LDR     r0, [r11, #4]
+00000b20 : e51fe1d0 : .... : LDR     lr, &00000958
+00000b24 : e15e0000 : ..^. : CMP     lr, r0
+00000b28 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00000b2c : 1afffeb5 : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00000b30 : e59b0014 : .... : LDR     r0, [r11, #&14]
+00000b34 : e3300004 : ..0. : TEQ     r0, #4
+00000b38 : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00000b3c : 1afffebf : .... : BNE     &00000640                 ; -> Function: err_notconnected
+00000b40 : e3320000 : ..2. : TEQ     r2, #0
+00000b44 : 0a000001 : .... : BEQ     &00000b50
+00000b48 : e59b0008 : .... : LDR     r0, [r11, #8]
+00000b4c : ef061214 : .... : SWI     XSocket_Write
+00000b50 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000b54 : 5f697773 : swi_ : SWIPL   &697773
+00000b58 : 64616572 : read : STRBTVS r6, [r1], #-&572
+00000b5c : 61746164 : data : CMNVS   r4, r4, ROR #2
+00000b60 : 20202000 : .    : EORHS   r2, r0, r0
+00000b64 : ff000010 : .... : Undefined instruction
+00000b68 : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_readdata
+00000b6c : e1a0b000 : .... : MOV     r11, r0
+00000b70 : e59b0004 : .... : LDR     r0, [r11, #4]
+00000b74 : e51fe224 : $... : LDR     lr, &00000958
+00000b78 : e15e0000 : ..^. : CMP     lr, r0
+00000b7c : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00000b80 : 1afffea0 : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00000b84 : e59b0014 : .... : LDR     r0, [r11, #&14]
+00000b88 : e3300004 : ..0. : TEQ     r0, #4
+00000b8c : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00000b90 : 1afffeaa : .... : BNE     &00000640                 ; -> Function: err_notconnected
+00000b94 : e3310000 : ..1. : TEQ     r1, #0
+00000b98 : 1a000003 : .... : BNE     &00000bac
+00000b9c : ebffff41 : A... : BL      &000008a8                 ; -> Function: buffer_fill
+00000ba0 : e59b0020 :  ... : LDR     r0, [r11, #&20]
+00000ba4 : e58d0008 : .... : STR     r0, [sp, #8]
+00000ba8 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000bac : e59b0020 :  ... : LDR     r0, [r11, #&20]
+00000bb0 : e1500002 : ..P. : CMP     r0, r2
+00000bb4 : bbffff3b : ;... : BLLT    &000008a8                 ; -> Function: buffer_fill
+00000bb8 : b59b0020 :  ... : LDRLT   r0, [r11, #&20]
+00000bbc : b1500002 : ..P. : CMPLT   r0, r2
+00000bc0 : b1a02000 : . .. : MOVLT   r2, r0
+00000bc4 : e58d2008 : . .. : STR     r2, [sp, #8]
+00000bc8 : e1a03002 : .0.. : MOV     r3, r2
+00000bcc : e59b4018 : .@.. : LDR     r4, [r11, #&18]
+00000bd0 : e2522001 : . R. : SUBS    r2, r2, #1
+00000bd4 : 4a000002 : ...J : BMI     &00000be4
+00000bd8 : e4d40001 : .... : LDRB    r0, [r4], #1
+00000bdc : e4c10001 : .... : STRB    r0, [r1], #1
+00000be0 : eafffffa : .... : B       &00000bd0
+00000be4 : e1a00003 : .... : MOV     r0, r3
+00000be8 : ebffff60 : `... : BL      &00000970                 ; -> Function: buffer_lose
+00000bec : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00000bf0 : 5f697773 : swi_ : SWIPL   &697773
+00000bf4 : 736f6c63 : clos : Undefined instruction
+00000bf8 : 6f006465 : ed.o : SWIVS   &6465
+00000bfc : ff00000c : .... : Undefined instruction
+00000c00 : e92d483e : >H-. : PUSH    {r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_closed
+00000c04 : e1a0b000 : .... : MOV     r11, r0
+00000c08 : e59b0004 : .... : LDR     r0, [r11, #4]
+00000c0c : e51fe2bc : .... : LDR     lr, &00000958
+00000c10 : e15e0000 : ..^. : CMP     lr, r0
+00000c14 : 18bd483e : >H.. : POPNE   {r1, r2, r3, r4, r5, r11, lr}
+00000c18 : 1afffe7a : z... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00000c1c : e59b0014 : .... : LDR     r0, [r11, #&14]
+00000c20 : e3300004 : ..0. : TEQ     r0, #4
+00000c24 : 18bd483e : >H.. : POPNE   {r1, r2, r3, r4, r5, r11, lr}
+00000c28 : 1afffe84 : .... : BNE     &00000640                 ; -> Function: err_notconnected
+00000c2c : e3110001 : .... : TST     r1, #1
+00000c30 : 1a000002 : .... : BNE     &00000c40
+00000c34 : e59b0020 :  ... : LDR     r0, [r11, #&20]
+00000c38 : e1b00000 : .... : MOVS    r0, r0
+00000c3c : 18fd883e : >... : LDMNEIA sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00000c40 : ef061218 : .... : SWI     XSocket_Gettsize
+00000c44 : 63a00001 : ...c : MOVVS   r0, #1
+00000c48 : 68fd883e : >..h : LDMVSIA sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00000c4c : e1a05000 : .P.. : MOV     r5, r0
+00000c50 : e1a00120 :  ... : MOV     r0, r0, LSR #2
+00000c54 : e2800007 : .... : ADD     r0, r0, #7
+00000c58 : e3c00003 : .... : BIC     r0, r0, #3
+00000c5c : e1a02000 : . .. : MOV     r2, r0
+00000c60 : eb000283 : .... : BL      &00001674                 ; -> Function: claim
+00000c64 : e3a01000 : .... : MOV     r1, #0
+00000c68 : e2522004 : . R. : SUBS    r2, r2, #4
+00000c6c : 57801002 : ...W : STRPL   r1, [r0, r2]
+00000c70 : 5afffffc : ...Z : BPL     &00000c68
+00000c74 : e1a01000 : .... : MOV     r1, r0
+00000c78 : e59b0008 : .... : LDR     r0, [r11, #8]
+00000c7c : e1a022a0 : .".. : MOV     r2, r0, LSR #5
+00000c80 : e200301f : .0.. : AND     r3, r0, #&1f              ; #31
+00000c84 : e3a04001 : .@.. : MOV     r4, #1
+00000c88 : e7910102 : .... : LDR     r0, [r1, r2, LSL #2]
+00000c8c : e1a04314 : .C.. : MOV     r4, r4, LSL r3
+00000c90 : e7814102 : .A.. : STR     r4, [r1, r2, LSL #2]
+00000c94 : e1a00005 : .... : MOV     r0, r5
+00000c98 : e3a02000 : . .. : MOV     r2, #0
+00000c9c : e3a03000 : .0.. : MOV     r3, #0
+00000ca0 : e28f4048 : H@.. : ADR     r4, &00000cf0             ; -> [&00000000, &00000000, &5f6d6f63, &636f7365]
+00000ca4 : ef061211 : .... : SWI     XSocket_Select
+00000ca8 : 63a00001 : ...c : MOVVS   r0, #1
+00000cac : 68fd883e : >..h : LDMVSIA sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00000cb0 : e1a05000 : .P.. : MOV     r5, r0
+00000cb4 : e1a00001 : .... : MOV     r0, r1
+00000cb8 : eb000277 : w... : BL      &0000169c                 ; -> Function: release
+00000cbc : e3350000 : ..5. : TEQ     r5, #0
+00000cc0 : 03a00000 : .... : MOVEQ   r0, #0
+00000cc4 : 08fd883e : >... : LDMEQIA sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00000cc8 : e59b0008 : .... : LDR     r0, [r11, #8]
+00000ccc : e28c1f02 : .... : ADD     r1, r12, #2, #30
+00000cd0 : e3a02001 : . .. : MOV     r2, #1
+00000cd4 : e3a03082 : .0.. : MOV     r3, #&82                  ; #130
+00000cd8 : ef061205 : .... : SWI     XSocket_Recv
+00000cdc : 6a0002ad : ...j : BVS     &00001798
+00000ce0 : e3300000 : ..0. : TEQ     r0, #0
+00000ce4 : 03a00001 : .... : MOVEQ   r0, #1
+00000ce8 : 13a00000 : .... : MOVNE   r0, #0
+00000cec : e8fd883e : >... : LDMIA   sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00000cf0 : 00000000 : .... : ANDEQ   r0, r0, r0
+00000cf4 : 00000000 : .... : ANDEQ   r0, r0, r0
+00000cf8 : 5f6d6f63 : com_ : SWIPL   &6d6f63
+00000cfc : 636f7365 : esoc : Undefined instruction
+00000d00 : 7374656b : kets : CMNVC   r4, #&1ac00000            ; #-448790528 = 3668<<20
+00000d04 : 34317200 : .r14 : LDRTLO  r7, [r1], #-&200
+00000d08 : ff000010 : .... : Undefined instruction
+00000d0c : e92d487f : .H-. : PUSH    {r0, r1, r2, r3, r4, r5, r6, r11, lr}  ; Command *b'ESockets' handler code  ; Function: com_esockets
+00000d10 : e59cc000 : .... : LDR     r12, [r12]
+00000d14 : e59cb000 : .... : LDR     r11, [r12]
+00000d18 : e33b0000 : ..;. : TEQ     r11, #0
+00000d1c : 08bd887f : .... : POPEQ   {r0, r1, r2, r3, r4, r5, r6, r11, pc}
+00000d20 : e59b100c : .... : LDR     r1, [r11, #&c]
+00000d24 : e3310000 : ..1. : TEQ     r1, #0
+00000d28 : 01a0000b : .... : MOVEQ   r0, r11
+00000d2c : 0bfffe62 : b... : BLEQ    &000006bc                 ; -> Function: swi_checkstate
+00000d30 : 059b100c : .... : LDREQ   r1, [r11, #&c]
+00000d34 : 03310000 : ..1. : TEQEQ   r1, #0
+00000d38 : 028f1f7d : }... : ADREQ   r1, &00000f34             ; -> "[Resolving]"
+00000d3c : e59b0008 : .... : LDR     r0, [r11, #8]
+00000d40 : e59b2010 : . .. : LDR     r2, [r11, #&10]
+00000d44 : e59b3020 :  0.. : LDR     r3, [r11, #&20]
+00000d48 : e59b401c : .@.. : LDR     r4, [r11, #&1c]
+00000d4c : e59b5014 : .P.. : LDR     r5, [r11, #&14]
+00000d50 : e3550003 : ..U. : CMP     r5, #3
+00000d54 : 028f1f73 : s... : ADREQ   r1, &00000f28             ; -> "[Listening]"
+00000d58 : e59b6024 : $`.. : LDR     r6, [r11, #&24]
+00000d5c : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00000d60 : e92d0003 : ..-. : PUSH    {r0, r1}
+00000d64 : e1a01001 : .... : MOV     r1, r1
+00000d68 : e4d10001 : .... : LDRB    r0, [r1], #1
+00000d6c : e3500020 :  .P. : CMP     r0, #&20                  ; #32  = ' ' = bit 5
+00000d70 : af000000 : .... : SWIGE   OS_WriteC
+00000d74 : aafffffb : .... : BGE     &00000d68
+00000d78 : e8bd0003 : .... : POP     {r0, r1}
+00000d7c : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = " : "
+00000d80 : 00203a20 :  : . : EOREQ   r3, r0, r0, LSR #20
+00000d84 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000d88 : e1a00002 : .... : MOV     r0, r2
+00000d8c : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00000d90 : e1a0100d : .... : MOV     r1, sp
+00000d94 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000d98 : ef0000dc : .... : SWI     OS_ConvertInteger4
+00000d9c : ef000002 : .... : SWI     OS_Write0
+00000da0 : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00000da4 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000da8 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = " (Socket "
+00000dac : 6f532820 :  (So : SWIVS   &532820
+00000db0 : 74656b63 : cket : STRBTVC r6, [r5], #-&b63
+00000db4 : 37200020 :  . 7 : STRLO   r0, [r0, -r0, LSR #32]!
+00000db8 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000dbc : e1a00000 : .... : MOV     r0, r0
+00000dc0 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00000dc4 : e1a0100d : .... : MOV     r1, sp
+00000dc8 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000dcc : ef0000dc : .... : SWI     OS_ConvertInteger4
+00000dd0 : ef000002 : .... : SWI     OS_Write0
+00000dd4 : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00000dd8 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000ddc : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = ")"
+00000de0 : 000a0d29 : )... : ANDEQ   r0, r10, r9, LSR #26
+00000de4 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00000de8 : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00000dec : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  Buflen = "
+00000df0 : 75422020 :   Bu : STRBVC  r2, [r2, #-&20]
+00000df4 : 6e656c66 : flen : CDPVS   p12, #6, c6, c5, c6, #3
+00000df8 : 00203d20 :  = . : EOREQ   r3, r0, r0, LSR #26
+00000dfc : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000e00 : e1a00004 : .... : MOV     r0, r4
+00000e04 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00000e08 : e1a0100d : .... : MOV     r1, sp
+00000e0c : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000e10 : ef0000dc : .... : SWI     OS_ConvertInteger4
+00000e14 : ef000002 : .... : SWI     OS_Write0
+00000e18 : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00000e1c : e8bd0007 : .... : POP     {r0, r1, r2}
+00000e20 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = ", Data pending = "
+00000e24 : 6144202c : , Da : Undefined instruction
+00000e28 : 70206174 : ta p : EORVC   r6, r0, r4, ROR r1
+00000e2c : 69646e65 : endi : STMDBVS r4!, {r0, r2, r5, r6, r9, r10, r11, sp, lr} ^
+00000e30 : 3d20676e : ng = : STCLO   p7, c6, [r0, #-&1b8]!
+00000e34 : 20640020 :  .d  : RSBHS   r0, r4, r0, LSR #32
+00000e38 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000e3c : e1a00003 : .... : MOV     r0, r3
+00000e40 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00000e44 : e1a0100d : .... : MOV     r1, sp
+00000e48 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000e4c : ef0000dc : .... : SWI     OS_ConvertInteger4
+00000e50 : ef000002 : .... : SWI     OS_Write0
+00000e54 : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00000e58 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000e5c : ef000003 : .... : SWI     OS_NewLine
+00000e60 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00000e64 : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00000e68 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  Handle = "
+00000e6c : 61482020 :   Ha : Undefined instruction
+00000e70 : 656c646e : ndle : STRBVS  r6, [r12, #-&46e]!
+00000e74 : 00203d20 :  = . : EOREQ   r3, r0, r0, LSR #26
+00000e78 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000e7c : e1a0000b : .... : MOV     r0, r11
+00000e80 : ef000126 : &... : SWI     OS_WriteI+"&"
+00000e84 : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+00000e88 : e1a0100d : .... : MOV     r1, sp
+00000e8c : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+00000e90 : ef0000d4 : .... : SWI     OS_ConvertHex8
+00000e94 : ef000002 : .... : SWI     OS_Write0
+00000e98 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00000e9c : e8bd0007 : .... : POP     {r0, r1, r2}
+00000ea0 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = ", State = "
+00000ea4 : 7453202c : , St : LDRBVC  r2, [r3], #-&2c
+00000ea8 : 20657461 : ate  : RSBHS   r7, r5, r1, ROR #8
+00000eac : 6100203d : = .a : Undefined instruction
+00000eb0 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000eb4 : e1a00005 : .... : MOV     r0, r5
+00000eb8 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00000ebc : e1a0100d : .... : MOV     r1, sp
+00000ec0 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00000ec4 : ef0000dc : .... : SWI     OS_ConvertInteger4
+00000ec8 : ef000002 : .... : SWI     OS_Write0
+00000ecc : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00000ed0 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000ed4 : ef000003 : .... : SWI     OS_NewLine
+00000ed8 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00000edc : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00000ee0 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  Domain = "
+00000ee4 : 6f442020 :   Do : SWIVS   &442020
+00000ee8 : 6e69616d : main : POWVSEZ F6, F1, #5
+00000eec : 00203d20 :  = . : EOREQ   r3, r0, r0, LSR #26
+00000ef0 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000ef4 : e1a00006 : .... : MOV     r0, r6
+00000ef8 : ef000126 : &... : SWI     OS_WriteI+"&"
+00000efc : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+00000f00 : e1a0100d : .... : MOV     r1, sp
+00000f04 : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+00000f08 : ef0000d4 : .... : SWI     OS_ConvertHex8
+00000f0c : ef000002 : .... : SWI     OS_Write0
+00000f10 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00000f14 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000f18 : ef000003 : .... : SWI     OS_NewLine
+00000f1c : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00000f20 : e59bb000 : .... : LDR     r11, [r11]
+00000f24 : eaffff7b : {... : B       &00000d18
+00000f28 : 73694c5b : [Lis : Undefined instruction
+00000f2c : 696e6574 : teni : STMDBVS lr!, {r2, r4, r5, r6, r8, r10, sp, lr} ^
+00000f30 : 005d676e : ng]. : SUBSEQ  r6, sp, lr, ROR #14
+00000f34 : 7365525b : [Res : Undefined instruction
+00000f38 : 69766c6f : olvi : LDMDBVS r6!, {r0, r1, r2, r3, r5, r6, r10, r11, sp, lr} ^
+00000f3c : 005d676e : ng]. : SUBSEQ  r6, sp, lr, ROR #14
+00000f40 : 5f6d6f63 : com_ : SWIPL   &6d6f63
+00000f44 : 6e6f6d65 : emon : CDPVS   p13, #6, c6, c15, c5, #3
+00000f48 : 726f7469 : itor : ADRVC   r7, &97000f50
+00000f4c : 20200073 : s.   : EORHS   r0, r0, r3, ROR r0
+00000f50 : ff000010 : .... : Undefined instruction
+00000f54 : e92d440f : .D-. : PUSH    {r0, r1, r2, r3, r10, lr}  ; Command *b'EMonitors' handler code  ; Function: com_emonitors
+00000f58 : e59cc000 : .... : LDR     r12, [r12]
+00000f5c : e59ca004 : .... : LDR     r10, [r12, #4]
+00000f60 : e33a0000 : ..:. : TEQ     r10, #0
+00000f64 : 08bd840f : .... : POPEQ   {r0, r1, r2, r3, r10, pc}
+00000f68 : e59a1008 : .... : LDR     r1, [r10, #8]
+00000f6c : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00000f70 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "Monitor "
+00000f74 : 696e6f4d : Moni : STMDBVS lr!, {r0, r2, r3, r6, r8, r9, r10, r11, sp, lr} ^
+00000f78 : 20726f74 : tor  : RSBSHS  r6, r2, r4, ROR pc
+00000f7c : 202c6f00 : .o,  : EORHS   r6, r12, r0, LSL #30
+00000f80 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000f84 : e1a0000a : .... : MOV     r0, r10
+00000f88 : ef000126 : &... : SWI     OS_WriteI+"&"
+00000f8c : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+00000f90 : e1a0100d : .... : MOV     r1, sp
+00000f94 : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+00000f98 : ef0000d4 : .... : SWI     OS_ConvertHex8
+00000f9c : ef000002 : .... : SWI     OS_Write0
+00000fa0 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00000fa4 : e8bd0007 : .... : POP     {r0, r1, r2}
+00000fa8 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = " (Pollword "
+00000fac : 6f502820 :  (Po : SWIVS   &502820
+00000fb0 : 6f776c6c : llwo : SWIVS   &776c6c
+00000fb4 : 00206472 : rd . : EOREQ   r6, r0, r2, ROR r4
+00000fb8 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00000fbc : e1a00001 : .... : MOV     r0, r1
+00000fc0 : ef000126 : &... : SWI     OS_WriteI+"&"
+00000fc4 : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+00000fc8 : e1a0100d : .... : MOV     r1, sp
+00000fcc : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+00000fd0 : ef0000d4 : .... : SWI     OS_ConvertHex8
+00000fd4 : ef000002 : .... : SWI     OS_Write0
+00000fd8 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00000fdc : e8bd0007 : .... : POP     {r0, r1, r2}
+00000fe0 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = ")"
+00000fe4 : 000a0d29 : )... : ANDEQ   r0, r10, r9, LSR #26
+00000fe8 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00000fec : e59a1010 : .... : LDR     r1, [r10, #&10]
+00000ff0 : e59a200c : . .. : LDR     r2, [r10, #&c]
+00000ff4 : e59a3008 : .0.. : LDR     r3, [r10, #8]
+00000ff8 : e5933000 : .0.. : LDR     r3, [r3]
+00000ffc : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00001000 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  Type = "
+00001004 : 79542020 :   Ty : LDMDBVC r4, {r5, sp} ^
+00001008 : 3d206570 : pe = : STCLO   p5, c6, [r0, #-&1c0]!
+0000100c : 69200020 :  . i : STMDBVS r0!, {r5}
+00001010 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00001014 : e1a00001 : .... : MOV     r0, r1
+00001018 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+0000101c : e1a0100d : .... : MOV     r1, sp
+00001020 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+00001024 : ef0000dc : .... : SWI     OS_ConvertInteger4
+00001028 : ef000002 : .... : SWI     OS_Write0
+0000102c : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+00001030 : e8bd0007 : .... : POP     {r0, r1, r2}
+00001034 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = ", Domain = "
+00001038 : 6f44202c : , Do : SWIVS   &44202c
+0000103c : 6e69616d : main : POWVSEZ F6, F1, #5
+00001040 : 00203d20 :  = . : EOREQ   r3, r0, r0, LSR #26
+00001044 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+00001048 : e1a00002 : .... : MOV     r0, r2
+0000104c : ef000126 : &... : SWI     OS_WriteI+"&"
+00001050 : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+00001054 : e1a0100d : .... : MOV     r1, sp
+00001058 : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+0000105c : ef0000d4 : .... : SWI     OS_ConvertHex8
+00001060 : ef000002 : .... : SWI     OS_Write0
+00001064 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00001068 : e8bd0007 : .... : POP     {r0, r1, r2}
+0000106c : ef000003 : .... : SWI     OS_NewLine
+00001070 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+00001074 : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+00001078 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  State = "
+0000107c : 74532020 :   St : LDRBVC  r2, [r3], #-&20
+00001080 : 20657461 : ate  : RSBHS   r7, r5, r1, ROR #8
+00001084 : 2000203d : = .  : ANDHS   r2, r0, sp, LSR r0
+00001088 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+0000108c : e1a00003 : .... : MOV     r0, r3
+00001090 : e24dd010 : ..M. : SUB     sp, sp, #&10              ; #16 = bit 4
+00001094 : e1a0100d : .... : MOV     r1, sp
+00001098 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+0000109c : ef0000dc : .... : SWI     OS_ConvertInteger4
+000010a0 : ef000002 : .... : SWI     OS_Write0
+000010a4 : e28dd010 : .... : ADD     sp, sp, #&10              ; #16 = bit 4
+000010a8 : e8bd0007 : .... : POP     {r0, r1, r2}
+000010ac : ef000003 : .... : SWI     OS_NewLine
+000010b0 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+000010b4 : e3310000 : ..1. : TEQ     r1, #0
+000010b8 : 1a000018 : .... : BNE     &00001120
+000010bc : e59a1018 : .... : LDR     r1, [r10, #&18]
+000010c0 : e92d001f : ..-. : PUSH    {r0, r1, r2, r3, r4}
+000010c4 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = "  Monitoring ESocket "
+000010c8 : 6f4d2020 :   Mo : SWIVS   &4d2020
+000010cc : 6f74696e : nito : SWIVS   &74696e
+000010d0 : 676e6972 : ring : Undefined instruction
+000010d4 : 6f534520 :  ESo : SWIVS   &534520
+000010d8 : 74656b63 : cket : STRBTVC r6, [r5], #-&b63
+000010dc : 20660020 :  .f  : RSBHS   r0, r6, r0, LSR #32
+000010e0 : e92d0007 : ..-. : PUSH    {r0, r1, r2}
+000010e4 : e1a00001 : .... : MOV     r0, r1
+000010e8 : ef000126 : &... : SWI     OS_WriteI+"&"
+000010ec : e24dd00c : ..M. : SUB     sp, sp, #&c               ; #12
+000010f0 : e1a0100d : .... : MOV     r1, sp
+000010f4 : e3a0200c : . .. : MOV     r2, #&c                   ; #12
+000010f8 : ef0000d4 : .... : SWI     OS_ConvertHex8
+000010fc : ef000002 : .... : SWI     OS_Write0
+00001100 : e28dd00c : .... : ADD     sp, sp, #&c               ; #12
+00001104 : e8bd0007 : .... : POP     {r0, r1, r2}
+00001108 : ef000001 : .... : SWI     OS_WriteS                 ; R15+4 = " and keys"
+0000110c : 646e6120 :  and : STRBTVS r6, [lr], #-&120
+00001110 : 79656b20 :  key : STMDBVC r5!, {r5, r8, r9, r11, sp, lr} ^
+00001114 : 000a0d73 : s... : ANDEQ   r0, r10, r3, ROR sp
+00001118 : e8bd001f : .... : POP     {r0, r1, r2, r3, r4}
+0000111c : eaffffff : .... : B       &00001120
+00001120 : e59aa000 : .... : LDR     r10, [r10]
+00001124 : eaffff8d : .... : B       &00000f60
+00001128 : 5f697773 : swi_ : SWIPL   &697773
+0000112c : 7473696c : list : LDRBTVC r6, [r3], #-&96c
+00001130 : 37006e65 : en.7 : STRLO   r6, [r0, -r5, ROR #28]
+00001134 : ff00000c : .... : Undefined instruction
+00001138 : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_listen
+0000113c : e59c2000 : . .. : LDR     r2, [r12]
+00001140 : e3a00028 : (... : MOV     r0, #&28                  ; #40  = '('
+00001144 : eb00014a : J... : BL      &00001674                 ; -> Function: claim
+00001148 : e1a0b000 : .... : MOV     r11, r0
+0000114c : e58b2000 : . .. : STR     r2, [r11]
+00001150 : e58cb000 : .... : STR     r11, [r12]
+00001154 : e51f0804 : .... : LDR     r0, &00000958
+00001158 : e58b0004 : .... : STR     r0, [r11, #4]
+0000115c : e3a00000 : .... : MOV     r0, #0
+00001160 : e58b001c : .... : STR     r0, [r11, #&1c]
+00001164 : e58b0018 : .... : STR     r0, [r11, #&18]
+00001168 : e58b0020 :  ... : STR     r0, [r11, #&20]
+0000116c : e5902ff8 : ./.. : LDR     r2, [r0, #&ff8]
+00001170 : e58b2024 : $ .. : STR     r2, [r11, #&24]
+00001174 : e58b000c : .... : STR     r0, [r11, #&c]
+00001178 : e59d1000 : .... : LDR     r1, [sp]
+0000117c : e58b1010 : .... : STR     r1, [r11, #&10]
+00001180 : e3e00000 : .... : MVN     r0, #0                    ; #&ffffffff = -1
+00001184 : e58b0008 : .... : STR     r0, [r11, #8]
+00001188 : e3a00003 : .... : MOV     r0, #3
+0000118c : e58b0014 : .... : STR     r0, [r11, #&14]
+00001190 : e3a00002 : .... : MOV     r0, #2
+00001194 : e3a01001 : .... : MOV     r1, #1
+00001198 : e3a02000 : . .. : MOV     r2, #0
+0000119c : ef061200 : .... : SWI     XSocket_Creat
+000011a0 : 63e00003 : ...c : MVNVS   r0, #3                    ; #&fffffffc = -4
+000011a4 : 658b0014 : ...e : STRVS   r0, [r11, #&14]
+000011a8 : 6a000020 :  ..j : BVS     &00001230
+000011ac : e58b0008 : .... : STR     r0, [r11, #8]
+000011b0 : e1a04000 : .@.. : MOV     r4, r0
+000011b4 : e59b0010 : .... : LDR     r0, [r11, #&10]
+000011b8 : ebfffd06 : .... : BL      &000005d8                 ; -> Function: htons
+000011bc : e1a00800 : .... : MOV     r0, r0, LSL #16
+000011c0 : e2800002 : .... : ADD     r0, r0, #2
+000011c4 : e28c1f02 : .... : ADD     r1, r12, #2, #30
+000011c8 : e5810000 : .... : STR     r0, [r1]
+000011cc : e3a00000 : .... : MOV     r0, #0
+000011d0 : e5810004 : .... : STR     r0, [r1, #4]
+000011d4 : e5910000 : .... : LDR     r0, [r1]
+000011d8 : e5910004 : .... : LDR     r0, [r1, #4]
+000011dc : e5910008 : .... : LDR     r0, [r1, #8]
+000011e0 : e591000c : .... : LDR     r0, [r1, #&c]
+000011e4 : e1a00004 : .... : MOV     r0, r4
+000011e8 : e3a02010 : . .. : MOV     r2, #&10                  ; #16 = bit 4
+000011ec : ef061201 : .... : SWI     XSocket_Bind
+000011f0 : 751f18a8 : ...u : LDRVC   r1, &00000950
+000011f4 : 71a00004 : ...q : MOVVC   r0, r4
+000011f8 : 728f2044 : D .r : ADRVC   r2, &00001244             ; -> "\xff\xff\xff\xffswi_accept"
+000011fc : 7f061212 : .... : SWIVC   XSocket_Ioctl
+00001200 : e51f18b4 : .... : LDR     r1, &00000954
+00001204 : e1a00004 : .... : MOV     r0, r4
+00001208 : e28f2034 : 4 .. : ADR     r2, &00001244             ; -> "\xff\xff\xff\xffswi_accept"
+0000120c : ef061212 : .... : SWI     XSocket_Ioctl
+00001210 : 71a00004 : ...q : MOVVC   r0, r4
+00001214 : 73a01005 : ...s : MOVVC   r1, #5
+00001218 : 7f061202 : .... : SWIVC   XSocket_Listen
+0000121c : 63e00006 : ...c : MVNVS   r0, #6                    ; #&fffffff9 = -7
+00001220 : 658b0014 : ...e : STRVS   r0, [r11, #&14]
+00001224 : 6a000001 : ...j : BVS     &00001230
+00001228 : e58db000 : .... : STR     r11, [sp]
+0000122c : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00001230 : e59b0014 : .... : LDR     r0, [r11, #&14]
+00001234 : e58d0000 : .... : STR     r0, [sp]
+00001238 : e1a0000b : .... : MOV     r0, r11
+0000123c : ebfffd2c : ,... : BL      &000006f4                 ; -> Function: swi_forget
+00001240 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00001244 : ffffffff : .... : Undefined instruction
+00001248 : 5f697773 : swi_ : SWIPL   &697773
+0000124c : 65636361 : acce : STRBVS  r6, [r3, #-&361]!
+00001250 : 54007470 : pt.T : STRPL   r7, [r0], #-&470
+00001254 : ff00000c : .... : Undefined instruction
+00001258 : e92d483f : ?H-. : PUSH    {r0, r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_accept
+0000125c : e1a0b000 : .... : MOV     r11, r0
+00001260 : e59b0004 : .... : LDR     r0, [r11, #4]
+00001264 : e51fe914 : .... : LDR     lr, &00000958
+00001268 : e15e0000 : ..^. : CMP     lr, r0
+0000126c : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00001270 : 1afffce4 : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00001274 : e59b0014 : .... : LDR     r0, [r11, #&14]
+00001278 : e3300003 : ..0. : TEQ     r0, #3
+0000127c : 18bd483f : ?H.. : POPNE   {r0, r1, r2, r3, r4, r5, r11, lr}
+00001280 : 1afffcfe : .... : BNE     &00000680                 ; -> Function: err_notlistening
+00001284 : e59c2000 : . .. : LDR     r2, [r12]
+00001288 : e3a00028 : (... : MOV     r0, #&28                  ; #40  = '('
+0000128c : eb0000f8 : .... : BL      &00001674                 ; -> Function: claim
+00001290 : e1a05000 : .P.. : MOV     r5, r0
+00001294 : e5852000 : . .. : STR     r2, [r5]
+00001298 : e58c5000 : .P.. : STR     r5, [r12]
+0000129c : e51f094c : L... : LDR     r0, &00000958
+000012a0 : e5850004 : .... : STR     r0, [r5, #4]
+000012a4 : e3a00c01 : .... : MOV     r0, #&100                 ; #256 = bit 8
+000012a8 : e585001c : .... : STR     r0, [r5, #&1c]
+000012ac : eb0000f0 : .... : BL      &00001674                 ; -> Function: claim
+000012b0 : e5850018 : .... : STR     r0, [r5, #&18]
+000012b4 : e3e00000 : .... : MVN     r0, #0                    ; #&ffffffff = -1
+000012b8 : e5850008 : .... : STR     r0, [r5, #8]
+000012bc : e3a00000 : .... : MOV     r0, #0
+000012c0 : e5850020 :  ... : STR     r0, [r5, #&20]
+000012c4 : e5902ff8 : ./.. : LDR     r2, [r0, #&ff8]
+000012c8 : e5852024 : $ .. : STR     r2, [r5, #&24]
+000012cc : e585000c : .... : STR     r0, [r5, #&c]
+000012d0 : e5850010 : .... : STR     r0, [r5, #&10]
+000012d4 : e59b0008 : .... : LDR     r0, [r11, #8]
+000012d8 : e28c1f02 : .... : ADD     r1, r12, #2, #30
+000012dc : e28f206c : l .. : ADR     r2, &00001350             ; -> [&00000010, &6b6f6f6c, &64617075, &73657264]
+000012e0 : ef061203 : .... : SWI     XSocket_Accept
+000012e4 : 63e00007 : ...c : MVNVS   r0, #7                    ; #&fffffff8 = -8
+000012e8 : 65850014 : ...e : STRVS   r0, [r5, #&14]
+000012ec : 6a000011 : ...j : BVS     &00001338
+000012f0 : e5850008 : .... : STR     r0, [r5, #8]
+000012f4 : e3a01004 : .... : MOV     r1, #4
+000012f8 : e5851014 : .... : STR     r1, [r5, #&14]
+000012fc : e1a04000 : .@.. : MOV     r4, r0
+00001300 : e51f19b8 : .... : LDR     r1, &00000950
+00001304 : e28f2040 : @ .. : ADR     r2, &0000134c             ; -> "\xff\xff\xff\xff"
+00001308 : ef061212 : .... : SWI     XSocket_Ioctl
+0000130c : e51f19c0 : .... : LDR     r1, &00000954
+00001310 : e1a00004 : .... : MOV     r0, r4
+00001314 : e28f2030 : 0 .. : ADR     r2, &0000134c             ; -> "\xff\xff\xff\xff"
+00001318 : ef061212 : .... : SWI     XSocket_Ioctl
+0000131c : e59d2004 : . .. : LDR     r2, [sp, #4]
+00001320 : e3120001 : .... : TST     r2, #1
+00001324 : 11a0000b : .... : MOVNE   r0, r11
+00001328 : 1bfffcf1 : .... : BLNE    &000006f4                 ; -> Function: swi_forget
+0000132c : eb00000d : .... : BL      &00001368                 ; -> Function: lookupaddress
+00001330 : e58d5000 : .P.. : STR     r5, [sp]
+00001334 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+00001338 : e5950014 : .... : LDR     r0, [r5, #&14]
+0000133c : e58d0000 : .... : STR     r0, [sp]
+00001340 : e1a00005 : .... : MOV     r0, r5
+00001344 : ebfffcea : .... : BL      &000006f4                 ; -> Function: swi_forget
+00001348 : e8fd883f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r11, pc} ^
+0000134c : ffffffff : .... : Undefined instruction
+00001350 : 00000010 : .... : ANDEQ   r0, r0, r0, LSL r0
+00001354 : 6b6f6f6c : look : BLVS    &01bdd10c
+00001358 : 64617075 : upad : STRBTVS r7, [r1], #-&75
+0000135c : 73657264 : dres : Undefined instruction
+00001360 : 6c200073 : s. l : STCVS   p0, c0, [r0], #-&1cc
+00001364 : ff000010 : .... : Undefined instruction
+00001368 : e92d403f : ?@-. : PUSH    {r0, r1, r2, r3, r4, r5, lr}  ; Function: lookupaddress
+0000136c : e3a0302e : .0.. : MOV     r3, #&2e                  ; #46  = '.'
+00001370 : e28f1060 : `... : ADR     r1, &000013d8             ; -> [&00000000, &00000000, &00000000, &00000000]
+00001374 : e28c4f02 : .O.. : ADD     r4, r12, #2, #30
+00001378 : e5d40004 : .... : LDRB    r0, [r4, #4]
+0000137c : e3a02040 : @ .. : MOV     r2, #&40                  ; #64  = '@' = bit 6
+00001380 : ef0200d5 : .... : SWI     XOS_ConvertCardinal1
+00001384 : e4c13001 : .0.. : STRB    r3, [r1], #1
+00001388 : e5d40005 : .... : LDRB    r0, [r4, #5]
+0000138c : ef0200d5 : .... : SWI     XOS_ConvertCardinal1
+00001390 : e4c13001 : .0.. : STRB    r3, [r1], #1
+00001394 : e5d40006 : .... : LDRB    r0, [r4, #6]
+00001398 : ef0200d5 : .... : SWI     XOS_ConvertCardinal1
+0000139c : e4c13001 : .0.. : STRB    r3, [r1], #1
+000013a0 : e5d40007 : .... : LDRB    r0, [r4, #7]
+000013a4 : ef0200d5 : .... : SWI     XOS_ConvertCardinal1
+000013a8 : e3a03000 : .0.. : MOV     r3, #0
+000013ac : e4c13001 : .0.. : STRB    r3, [r1], #1
+000013b0 : e28f0020 :  ... : ADR     r0, &000013d8             ; -> [&00000000, &00000000, &00000000, &00000000]
+000013b4 : ef066001 : .`.. : SWI     XResolver_GetHost
+000013b8 : 628f0018 : ...b : ADRVS   r0, &000013d8             ; -> [&00000000, &00000000, &00000000, &00000000]
+000013bc : 6a000002 : ...j : BVS     &000013cc
+000013c0 : e3300024 : $.0. : TEQ     r0, #&24                  ; #36  = '$'
+000013c4 : 0a000002 : .... : BEQ     &000013d4
+000013c8 : e5910000 : .... : LDR     r0, [r1]
+000013cc : eb0000ba : .... : BL      &000016bc                 ; -> Function: strdup
+000013d0 : e58b000c : .... : STR     r0, [r11, #&c]
+000013d4 : e8fd803f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, pc} ^
+000013d8 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013dc : 00000000 : .... : ANDEQ   r0, r0, r0
+000013e0 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013e4 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013e8 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013ec : 00000000 : .... : ANDEQ   r0, r0, r0
+000013f0 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013f4 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013f8 : 00000000 : .... : ANDEQ   r0, r0, r0
+000013fc : 00000000 : .... : ANDEQ   r0, r0, r0
+00001400 : 00000000 : .... : ANDEQ   r0, r0, r0
+00001404 : 00000000 : .... : ANDEQ   r0, r0, r0
+00001408 : 00000000 : .... : ANDEQ   r0, r0, r0
+0000140c : 00000000 : .... : ANDEQ   r0, r0, r0
+00001410 : 00000000 : .... : ANDEQ   r0, r0, r0
+00001414 : 00000000 : .... : ANDEQ   r0, r0, r0
+00001418 : 5f697773 : swi_ : SWIPL   &697773
+0000141c : 6e6e6f63 : conn : CDPVS   p15, #6, c6, c14, c3, #3
+00001420 : 69746365 : ecti : LDMDBVS r4!, {r0, r2, r5, r6, r8, r9, sp, lr} ^
+00001424 : 616e6e6f : onna : Undefined instruction
+00001428 : 3300656d : me.3 : MOVWLO  r6, #&56d                 ; #1389
+0000142c : ff000014 : .... : Undefined instruction
+00001430 : e92d483e : >H-. : PUSH    {r1, r2, r3, r4, r5, r11, lr}  ; Function: swi_connectionname
+00001434 : e1a0b000 : .... : MOV     r11, r0
+00001438 : e59b0004 : .... : LDR     r0, [r11, #4]
+0000143c : e51feaec : .... : LDR     lr, &00000958
+00001440 : e15e0000 : ..^. : CMP     lr, r0
+00001444 : 18bd483e : >H.. : POPNE   {r1, r2, r3, r4, r5, r11, lr}
+00001448 : 1afffc6e : n... : BNE     &00000608                 ; -> Function: err_baddescriptor
+0000144c : e59b0014 : .... : LDR     r0, [r11, #&14]
+00001450 : e3300004 : ..0. : TEQ     r0, #4
+00001454 : 18bd483e : >H.. : POPNE   {r1, r2, r3, r4, r5, r11, lr}
+00001458 : 1afffc78 : x... : BNE     &00000640                 ; -> Function: err_notconnected
+0000145c : e59b000c : .... : LDR     r0, [r11, #&c]
+00001460 : e3300000 : ..0. : TEQ     r0, #0
+00001464 : 01a0000b : .... : MOVEQ   r0, r11
+00001468 : 0bfffc93 : .... : BLEQ    &000006bc                 ; -> Function: swi_checkstate
+0000146c : 059b000c : .... : LDREQ   r0, [r11, #&c]
+00001470 : e8fd883e : >... : LDMIA   sp!, {r1, r2, r3, r4, r5, r11, pc} ^
+00001474 : 6e657665 : even : CDPVS   p6, #6, c7, c5, c5, #3
+00001478 : 6e695f74 : t_in : MCRVS   p15, #3, r5, c9, c4, #3
+0000147c : 65007465 : et.e : STRVS   r7, [r0, #-&465]
+00001480 : ff00000c : .... : Undefined instruction
+00001484 : e92d4c3f : ?L-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, r11, lr}  ; Function: event_inet
+00001488 : e3310003 : ..1. : TEQ     r1, #3
+0000148c : 13310001 : ..1. : TEQNE   r1, #1
+00001490 : 18fd8c3f : ?... : LDMNEIA sp!, {r0, r1, r2, r3, r4, r5, r10, r11, pc} ^
+00001494 : e59c5004 : .P.. : LDR     r5, [r12, #4]
+00001498 : e1a0a005 : .... : MOV     r10, r5
+0000149c : e33a0000 : ..:. : TEQ     r10, #0
+000014a0 : 08fd8c3f : ?... : LDMEQIA sp!, {r0, r1, r2, r3, r4, r5, r10, r11, pc} ^
+000014a4 : e59a5000 : .P.. : LDR     r5, [r10]
+000014a8 : e59a0010 : .... : LDR     r0, [r10, #&10]
+000014ac : e3300000 : ..0. : TEQ     r0, #0
+000014b0 : 1afffff8 : .... : BNE     &00001498
+000014b4 : e59ab018 : .... : LDR     r11, [r10, #&18]
+000014b8 : e59b0008 : .... : LDR     r0, [r11, #8]
+000014bc : e1300002 : ..0. : TEQ     r0, r2
+000014c0 : 1afffff4 : .... : BNE     &00001498
+000014c4 : e3a00001 : .... : MOV     r0, #1
+000014c8 : e59a1008 : .... : LDR     r1, [r10, #8]
+000014cc : e5810000 : .... : STR     r0, [r1]
+000014d0 : eafffff0 : .... : B       &00001498
+000014d4 : 6e657665 : even : CDPVS   p6, #6, c7, c5, c5, #3
+000014d8 : 6e655f74 : t_en : MCRVS   p15, #3, r5, c5, c4, #3
+000014dc : 69726574 : teri : LDMDBVS r2!, {r2, r4, r5, r6, r8, r10, sp, lr} ^
+000014e0 : 2000676e : ng.  : ANDHS   r6, r0, lr, ROR #14
+000014e4 : ff000010 : .... : Undefined instruction
+000014e8 : e92d443f : ?D-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, lr}  ; Function: event_entering
+000014ec : e1300000 : ..0. : TEQ     r0, r0
+000014f0 : 18fd843f : ?... : LDMNEIA sp!, {r0, r1, r2, r3, r4, r5, r10, pc} ^
+000014f4 : e59c5004 : .P.. : LDR     r5, [r12, #4]
+000014f8 : e1a0a005 : .... : MOV     r10, r5
+000014fc : e33a0000 : ..:. : TEQ     r10, #0
+00001500 : 08fd843f : ?... : LDMEQIA sp!, {r0, r1, r2, r3, r4, r5, r10, pc} ^
+00001504 : e59a5000 : .P.. : LDR     r5, [r10]
+00001508 : e59a0010 : .... : LDR     r0, [r10, #&10]
+0000150c : e3300000 : ..0. : TEQ     r0, #0
+00001510 : 1afffff8 : .... : BNE     &000014f8
+00001514 : e3a00001 : .... : MOV     r0, #1
+00001518 : e59a1008 : .... : LDR     r1, [r10, #8]
+0000151c : e5810000 : .... : STR     r0, [r1]
+00001520 : eafffff4 : .... : B       &000014f8
+00001524 : 5f697773 : swi_ : SWIPL   &697773
+00001528 : 696e6f6d : moni : STMDBVS lr!, {r0, r2, r3, r5, r6, r8, r9, r10, r11, sp, lr} ^
+0000152c : 00726f74 : tor. : RSBSEQ  r6, r2, r4, ROR pc
+00001530 : ff00000c : .... : Undefined instruction
+00001534 : e92d4c3f : ?L-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, r11, lr}  ; Function: swi_monitor
+00001538 : e3300000 : ..0. : TEQ     r0, #0
+0000153c : 1a00001a : .... : BNE     &000015ac
+00001540 : e1a0b001 : .... : MOV     r11, r1
+00001544 : e59b0004 : .... : LDR     r0, [r11, #4]
+00001548 : e51febf8 : .... : LDR     lr, &00000958
+0000154c : e15e0000 : ..^. : CMP     lr, r0
+00001550 : 18bd4c3f : ?L.. : POPNE   {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+00001554 : 1afffc2b : +... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00001558 : e59b0014 : .... : LDR     r0, [r11, #&14]
+0000155c : e3300004 : ..0. : TEQ     r0, #4
+00001560 : 18bd4c3f : ?L.. : POPNE   {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+00001564 : 1afffc35 : 5... : BNE     &00000640                 ; -> Function: err_notconnected
+00001568 : e3a0001c : .... : MOV     r0, #&1c                  ; #28
+0000156c : eb000040 : @... : BL      &00001674                 ; -> Function: claim
+00001570 : e5801018 : .... : STR     r1, [r0, #&18]
+00001574 : e3a02000 : . .. : MOV     r2, #0
+00001578 : e5802014 : . .. : STR     r2, [r0, #&14]
+0000157c : e5802010 : . .. : STR     r2, [r0, #&10]
+00001580 : e5922ff8 : ./.. : LDR     r2, [r2, #&ff8]
+00001584 : e580200c : . .. : STR     r2, [r0, #&c]
+00001588 : e2801014 : .... : ADD     r1, r0, #&14              ; #20
+0000158c : e5801008 : .... : STR     r1, [r0, #8]
+00001590 : e51f1c3c : <... : LDR     r1, &0000095c
+00001594 : e5801004 : .... : STR     r1, [r0, #4]
+00001598 : e59ca004 : .... : LDR     r10, [r12, #4]
+0000159c : e580a000 : .... : STR     r10, [r0]
+000015a0 : e58c0004 : .... : STR     r0, [r12, #4]
+000015a4 : e58d0000 : .... : STR     r0, [sp]
+000015a8 : e8fd8c3f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r10, r11, pc} ^
+000015ac : e8bd4c3f : ?L.. : POP     {r0, r1, r2, r3, r4, r5, r10, r11, lr}
+000015b0 : e28f0000 : .... : ADR     r0, &000015b8             ; -> [&00000000, &6e6b6e55, &206e776f, &65707974]
+000015b4 : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+000015b8 : 00000000 : .... : ANDEQ   r0, r0, r0
+000015bc : 6e6b6e55 : Unkn : MCRVS   p14, #3, r6, c11, c5, #2
+000015c0 : 206e776f : own  : RSBHS   r7, lr, pc, ROR #14
+000015c4 : 65707974 : type : LDRBVS  r7, [r0, #-&974]!
+000015c8 : 73617020 :  pas : Undefined instruction
+000015cc : 20646573 : sed  : RSBHS   r6, r4, r3, ROR r5
+000015d0 : 45206f74 : to E : STRMI   r6, [r0, #-&f74]!
+000015d4 : 6b636f53 : Sock : BLVS    &018dd328
+000015d8 : 4d5f7465 : et_M : LDCLMI  p4, c7, [pc, #-&194]
+000015dc : 74696e6f : onit : STRBTVC r6, [r9], #-&e6f
+000015e0 : 4500726f : or.E : STRMI   r7, [r0, #-&26f]
+000015e4 : 5f697773 : swi_ : SWIPL   &697773
+000015e8 : 65736572 : rese : LDRBVS  r6, [r3, #-&572]!
+000015ec : 6e6f6d74 : tmon : MCRVS   p13, #3, r6, c15, c4, #3
+000015f0 : 726f7469 : itor : ADRVC   r7, &970015f8
+000015f4 : 20207000 : .p   : EORHS   r7, r0, r0
+000015f8 : ff000014 : .... : Undefined instruction
+000015fc : e92d443f : ?D-. : PUSH    {r0, r1, r2, r3, r4, r5, r10, lr}  ; Function: swi_resetmonitor
+00001600 : e1a0a000 : .... : MOV     r10, r0
+00001604 : e59a0004 : .... : LDR     r0, [r10, #4]
+00001608 : e51fecb4 : .... : LDR     lr, &0000095c
+0000160c : e15e0000 : ..^. : CMP     lr, r0
+00001610 : 18bd443f : ?D.. : POPNE   {r0, r1, r2, r3, r4, r5, r10, lr}
+00001614 : 1afffbfb : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00001618 : e3110003 : .... : TST     r1, #3
+0000161c : 18bd443f : ?D.. : POPNE   {r0, r1, r2, r3, r4, r5, r10, lr}
+00001620 : 1afffbf8 : .... : BNE     &00000608                 ; -> Function: err_baddescriptor
+00001624 : e3310000 : ..1. : TEQ     r1, #0
+00001628 : 158a1008 : .... : STRNE   r1, [r10, #8]
+0000162c : 059a1008 : .... : LDREQ   r1, [r10, #8]
+00001630 : e3a00000 : .... : MOV     r0, #0
+00001634 : e5810000 : .... : STR     r0, [r1]
+00001638 : e58d1000 : .... : STR     r1, [sp]
+0000163c : e8fd843f : ?... : LDMIA   sp!, {r0, r1, r2, r3, r4, r5, r10, pc} ^
+00001640 : 65747865 : exte : LDRBVS  r7, [r4, #-&865]!
+00001644 : 2000646e : nd.  : ANDHS   r6, r0, lr, ROR #8
+00001648 : ff000008 : .... : Undefined instruction
+0000164c : e92d400e : .@-. : PUSH    {r1, r2, r3, lr}          ; Function: extend
+00001650 : e1a02000 : . .. : MOV     r2, r0
+00001654 : e1a03001 : .0.. : MOV     r3, r1
+00001658 : e3a0000d : .... : MOV     r0, #&d                   ; #13
+0000165c : ef02001e : .... : SWI     XOS_Module
+00001660 : e1a00002 : .... : MOV     r0, r2
+00001664 : e8bd800e : .... : POP     {r1, r2, r3, pc}
+00001668 : 69616c63 : clai : STMDBVS r1!, {r0, r1, r5, r6, r10, r11, sp, lr} ^
+0000166c : 2020006d : m.   : EORHS   r0, r0, sp, RRX
+00001670 : ff000008 : .... : Undefined instruction
+00001674 : e92d400e : .@-. : PUSH    {r1, r2, r3, lr}          ; Function: claim
+00001678 : e1a03000 : .0.. : MOV     r3, r0
+0000167c : e3a00006 : .... : MOV     r0, #6
+00001680 : ef02001e : .... : SWI     XOS_Module
+00001684 : 63a00000 : ...c : MOVVS   r0, #0
+00001688 : 71a00002 : ...q : MOVVC   r0, r2
+0000168c : e8fd800e : .... : LDMIA   sp!, {r1, r2, r3, pc} ^
+00001690 : 656c6572 : rele : STRBVS  r6, [r12, #-&572]!
+00001694 : 00657361 : ase. : RSBEQ   r7, r5, r1, ROR #6
+00001698 : ff000008 : .... : Undefined instruction
+0000169c : e92d4007 : .@-. : PUSH    {r0, r1, r2, lr}          ; Function: release
+000016a0 : e1a02000 : . .. : MOV     r2, r0
+000016a4 : e3a00007 : .... : MOV     r0, #7
+000016a8 : ef02001e : .... : SWI     XOS_Module
+000016ac : e8fd8007 : .... : LDMIA   sp!, {r0, r1, r2, pc} ^
+000016b0 : 64727473 : strd : LDRBTVS r7, [r2], #-&473
+000016b4 : 20007075 : up.  : ANDHS   r7, r0, r5, ROR r0
+000016b8 : ff000008 : .... : Undefined instruction
+000016bc : e92d4007 : .@-. : PUSH    {r0, r1, r2, lr}          ; Function: strdup
+000016c0 : eb000028 : (... : BL      &00001768                 ; -> Function: strlen
+000016c4 : e1a02001 : . .. : MOV     r2, r1
+000016c8 : e2810001 : .... : ADD     r0, r1, #1
+000016cc : ebffffe8 : .... : BL      &00001674                 ; -> Function: claim
+000016d0 : e3300000 : ..0. : TEQ     r0, #0
+000016d4 : 0a000006 : .... : BEQ     &000016f4
+000016d8 : e1a01000 : .... : MOV     r1, r0
+000016dc : e59d0000 : .... : LDR     r0, [sp]
+000016e0 : eb000017 : .... : BL      &00001744                 ; -> Function: strcpy
+000016e4 : e58d1000 : .... : STR     r1, [sp]
+000016e8 : e3a00000 : .... : MOV     r0, #0
+000016ec : e7c10002 : .... : STRB    r0, [r1, r2]
+000016f0 : e8bd8007 : .... : POP     {r0, r1, r2, pc}
+000016f4 : e28dd004 : .... : ADD     sp, sp, #4
+000016f8 : e8bd4006 : .@.. : POP     {r1, r2, lr}
+000016fc : e28f0000 : .... : ADR     r0, &00001704             ; -> [&00000000, &69727453, &6420676e, &696c7075]
+00001700 : e39ef201 : .... : ORRS    pc, lr, #&10000000        ; #268435456 = bit 28
+00001704 : 00000000 : .... : ANDEQ   r0, r0, r0
+00001708 : 69727453 : Stri : LDMDBVS r2!, {r0, r1, r4, r6, r10, r12, sp, lr} ^
+0000170c : 6420676e : ng d : STRTVS  r6, [r0], #-&76e
+00001710 : 696c7075 : upli : STMDBVS r12!, {r0, r2, r4, r5, r6, r12, sp, lr} ^
+00001714 : 69746163 : cati : LDMDBVS r4!, {r0, r1, r5, r6, r8, sp, lr} ^
+00001718 : 66206e6f : on f : STRTVS  r6, [r0], -pc, ROR #28
+0000171c : 656c6961 : aile : STRBVS  r6, [r12, #-&961]!
+00001720 : 202d2064 : d -  : EORHS   r2, sp, r4, RRX
+00001724 : 20746f6e : not  : RSBSHS  r6, r4, lr, ROR #30
+00001728 : 756f6e65 : enou : STRBVC  r6, &000008cb
+0000172c : 6d206867 : gh m : STCVS   p8, c6, [r0, #-&19c]!
+00001730 : 726f6d65 : emor : ADRVC   r6, &fffffdf8
+00001734 : 20200079 : y.   : EORHS   r0, r0, r9, ROR r0
+00001738 : 63727473 : strc : CMNVS   r2, #&73000000            ; #-1929379840 = 141<<24
+0000173c : 69007970 : py.i : STMDBVS r0, {r4, r5, r6, r8, r11, r12, sp, lr}
+00001740 : ff000008 : .... : Undefined instruction
+00001744 : e92d4023 : #@-. : PUSH    {r0, r1, r5, lr}          ; Function: strcpy
+00001748 : e4d05001 : .P.. : LDRB    r5, [r0], #1
+0000174c : e4c15001 : .P.. : STRB    r5, [r1], #1
+00001750 : e355001f : ..U. : CMP     r5, #&1f                  ; #31
+00001754 : cafffffb : .... : BGT     &00001748
+00001758 : e8fd8023 : #... : LDMIA   sp!, {r0, r1, r5, pc} ^
+0000175c : 6c727473 : strl : LDCLVS  p4, c7, [r2], #-&1cc
+00001760 : 20006e65 : en.  : ANDHS   r6, r0, r5, ROR #28
+00001764 : ff000008 : .... : Undefined instruction
+00001768 : e92d4004 : .@-. : PUSH    {r2, lr}                  ; Function: strlen
+0000176c : e3a01000 : .... : MOV     r1, #0
+00001770 : e7d02001 : . .. : LDRB    r2, [r0, r1]
+00001774 : e2811001 : .... : ADD     r1, r1, #1
+00001778 : e3520020 :  .R. : CMP     r2, #&20                  ; #32  = ' ' = bit 5
+0000177c : aafffffb : .... : BGE     &00001770
+00001780 : e2411001 : ..A. : SUB     r1, r1, #1
+00001784 : e8fd8004 : .... : LDMIA   sp!, {r2, pc} ^
+00001788 : e5902000 : . .. : LDR     r2, [r0]
+0000178c : e3320023 : #.2. : TEQ     r2, #&23                  ; #35  = '#'
+00001790 : 1afffb66 : f... : BNE     &00000530
+00001794 : eafffb62 : b... : B       &00000524
+00001798 : e5900000 : .... : LDR     r0, [r0]
+0000179c : e3300023 : #.0. : TEQ     r0, #&23                  ; #35  = '#'
+000017a0 : 03a00001 : .... : MOVEQ   r0, #1
+000017a4 : 13a00000 : .... : MOVNE   r0, #0
+000017a8 : e1a0f00e : .... : MOV     pc, lr

@@ -37,9 +37,17 @@ swi-decoding-table: ESocket,
                     Closed, Listen, Accept, ConnectionName,
                     Monitor, ResetMonitor
 
+error-base: &580000
+
+error-identifiers: \
+    Err_BadHandle("Bad ESocket handle"), \
+    Err_NotConnected("Not connected")
+
 initialisation-code: Mod_Init
 
 finalisation-code: Mod_Final
+
+service-call-handler: Mod_Service &53
 
 command-keyword-table: Mod_Command,
     ESockets(min-args: 0, max-args: 0, help-text: "Lists active socket connections."),

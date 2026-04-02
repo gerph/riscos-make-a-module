@@ -18,6 +18,12 @@
 - Support for listening and accepting connections.
 - Command-line interface for connection monitoring.
 
-## Next Steps
-- Implement full `*EMonitors` functionality if needed.
-- Add more robust error handling.
+## Deficiencies vs Original Module
+- [x] **Handle Management:** Switched to linked list of dynamically allocated blocks.
+- [x] **Handle Validation:** Implemented magic number check and list search for safety.
+- [x] **Buffering:** Implemented dynamic buffer extension in `socket_read_line`.
+- [x] **Line Endings:** `ESocket_ReadLine` now handles `\r`, `\n`, and `\r\n`.
+- [x] **Error Handling:** Added specific error blocks for `Bad ESocket handle` and `Not connected`.
+- [x] **Service Handler:** Implemented `Service_WimpCloseDown` (&53) handler for cleanup.
+- [ ] **Monitoring:** `ESocket_Monitor` and `ESocket_ResetMonitor` are stubs.
+- [x] **Hostname Resolution:** `ESocket_ConnectionName` returns the pointer to the `strdup`'d internal buffer.

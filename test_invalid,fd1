@@ -1,0 +1,8 @@
+REM Test invalid handle validation
+SYS "XESocket_CheckState", &12345678 TO r0% ; f%
+IF f% AND 1 THEN
+  PRINT "Caught expected error: ";$(r0%+4)
+ELSE
+  PRINT "FAILED: Accepted invalid handle &12345678"
+ENDIF
+END

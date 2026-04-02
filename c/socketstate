@@ -10,56 +10,94 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include "kernel.h"
+#include "modhead.h"
 #include "socketstate.h"
 
-static socket_handle_t handles[MAX_SOCKET_HANDLES];
+static socket_handle_t *socket_list = NULL;
+
+static char *socket_strdup(const char *s)
+{
+    size_t len = strlen(s) + 1;
+    char *new_s = malloc(len);
+    if (new_s) memcpy(new_s, s, len);
+    return new_s;
+}
 
 _kernel_oserror *socket_init(void)
 {
-    int i;
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        handles[i].socket_fd = -1;
-        handles[i].active = 0;
-        handles[i].remote_name[0] = '\0';
-        handles[i].buffer_len = 0;
-    }
+    socket_list = NULL;
     return NULL;
+}
+
+static void socket_free(socket_handle_t *h)
+{
+    if (h->socket_fd != -1) close(h->socket_fd);
+    if (h->remote_name) free(h->remote_name);
+    if (h->buffer) free(h->buffer);
+    free(h);
 }
 
 _kernel_oserror *socket_final(void)
 {
-    int i;
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        if (handles[i].active && handles[i].socket_fd != -1) {
-            close(handles[i].socket_fd);
-            handles[i].active = 0;
-            handles[i].socket_fd = -1;
-        }
+    while (socket_list) {
+        socket_handle_t *next = socket_list->next;
+        socket_free(socket_list);
+        socket_list = next;
     }
     return NULL;
 }
 
-_kernel_oserror *socket_connect(const char *hostname, int port, int *handle)
+_kernel_oserror *socket_validate(int handle, socket_handle_t **out)
+{
+    socket_handle_t *h = socket_list;
+    while (h) {
+        if ((int)h == handle) {
+            if (h->magic == SOCKET_MAGIC) {
+                *out = h;
+                return NULL;
+            }
+            break;
+        }
+        h = h->next;
+    }
+    return Err_BadHandle;
+}
+
+static socket_handle_t *socket_alloc(void)
+{
+    socket_handle_t *h = malloc(sizeof(socket_handle_t));
+    if (h) {
+        memset(h, 0, sizeof(socket_handle_t));
+        h->magic = SOCKET_MAGIC;
+        h->socket_fd = -1;
+        h->buffer_size = 4096;
+        h->buffer = malloc(h->buffer_size);
+        if (!h->buffer) {
+            free(h);
+            return NULL;
+        }
+        h->next = socket_list;
+        socket_list = h;
+    }
+    return h;
+}
+
+_kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t **handle)
 {
     struct hostent *hp;
     struct sockaddr_in sin;
     int s;
-    int i;
+    socket_handle_t *h;
     static _kernel_oserror err_host = {0, "Host not found"};
     static _kernel_oserror err_sock = {0, "Socket creation failed"};
     static _kernel_oserror err_conn = {0, "Connection failed"};
-    static _kernel_oserror err_full = {0, "Too many open sockets"};
+    static _kernel_oserror err_mem  = {0, "Out of memory"};
 
     hp = gethostbyname(hostname);
-    if (hp == NULL) {
-        return &err_host;
-    }
+    if (hp == NULL) return &err_host;
 
     s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s < 0) {
-        sprintf(err_sock.errmess, "Socket creation failed (%d)", errno);
-        return &err_sock;
-    }
+    if (s < 0) return &err_sock;
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
@@ -67,87 +105,88 @@ _kernel_oserror *socket_connect(const char *hostname, int port, int *handle)
     memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
 
     if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-        sprintf(err_conn.errmess, "Connection failed (%d)", errno);
         close(s);
         return &err_conn;
     }
 
-    // Find free handle
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        if (!handles[i].active) {
-            handles[i].socket_fd = s;
-            handles[i].active = 1;
-            strncpy(handles[i].remote_name, hostname, sizeof(handles[i].remote_name) - 1);
-            handles[i].remote_name[sizeof(handles[i].remote_name) - 1] = '\0';
-            handles[i].buffer_len = 0;
-            *handle = i;
+    h = socket_alloc();
+    if (!h) {
+        close(s);
+        return &err_mem;
+    }
+
+    h->socket_fd = s;
+    h->remote_name = socket_strdup(hostname);
+    h->port = port;
+    h->state = 4; // Connected
+    *handle = h;
+    return NULL;
+}
+
+_kernel_oserror *socket_get_state(socket_handle_t *h, int *state)
+{
+    *state = h->state;
+    return NULL;
+}
+
+_kernel_oserror *socket_forget(socket_handle_t *h)
+{
+    socket_handle_t **curr = &socket_list;
+    while (*curr) {
+        if (*curr == h) {
+            *curr = h->next;
+            socket_free(h);
             return NULL;
         }
+        curr = &((*curr)->next);
     }
-
-    close(s);
-    return &err_full;
-}
-
-_kernel_oserror *socket_get_state(int handle, int *state)
-{
-    static _kernel_oserror err_handle = {0, "Invalid handle"};
-    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
-        return &err_handle;
-    }
-    *state = 1; // Basic state for now
     return NULL;
 }
 
-_kernel_oserror *socket_forget(int handle)
-{
-    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
-        return NULL;
-    }
-    if (handles[handle].socket_fd != -1) {
-        close(handles[handle].socket_fd);
-    }
-    handles[handle].active = 0;
-    handles[handle].socket_fd = -1;
-    return NULL;
-}
-
-_kernel_oserror *socket_send_line(int handle, const char *line)
+_kernel_oserror *socket_send_line(socket_handle_t *h, const char *line)
 {
     int len = strlen(line);
-    int s = handles[handle].socket_fd;
-    if (send(s, line, len, 0) < 0 || send(s, "\r\n", 2, 0) < 0) {
+    if (send(h->socket_fd, line, len, 0) < 0 || send(h->socket_fd, "\r\n", 2, 0) < 0) {
         static _kernel_oserror err = {0, "Send failed"};
         return &err;
     }
     return NULL;
 }
 
-_kernel_oserror *socket_read_line(int handle, char *buffer, int *size)
+_kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size)
 {
-    int s = handles[handle].socket_fd;
+    int s = h->socket_fd;
     int max = *size;
-    int i;
-    int found = 0;
-    int n;
+    int i, found = 0, n;
+    static _kernel_oserror err_mem = {0, "Out of memory extending buffer"};
 
-    // Search in existing buffer
-    for (i = 0; i < handles[handle].buffer_len; i++) {
-        if (handles[handle].buffer[i] == '\n') {
+    for (i = 0; i < h->buffer_len; i++) {
+        if (h->buffer[i] == '\n' || h->buffer[i] == '\r') {
             found = i + 1;
+            if (h->buffer[i] == '\r' && (i + 1) < h->buffer_len && h->buffer[i+1] == '\n') {
+                found = i + 2;
+            }
             break;
         }
     }
 
     if (!found) {
-        // Recv more data
-        n = recv(s, handles[handle].buffer + handles[handle].buffer_len,
-                 sizeof(handles[handle].buffer) - handles[handle].buffer_len, 0);
+        if (h->buffer_len == h->buffer_size) {
+            int new_size = h->buffer_size * 2;
+            char *new_buf = realloc(h->buffer, new_size);
+            if (!new_buf) return &err_mem;
+            h->buffer = new_buf;
+            h->buffer_size = new_size;
+        }
+        n = recv(s, h->buffer + h->buffer_len, h->buffer_size - h->buffer_len, 0);
         if (n > 0) {
-            handles[handle].buffer_len += n;
-            for (i = 0; i < handles[handle].buffer_len; i++) {
-                if (handles[handle].buffer[i] == '\n') {
+            h->buffer_len += n;
+            for (i = 0; i < h->buffer_len; i++) {
+                if (h->buffer[i] == '\n' || h->buffer[i] == '\r') {
                     found = i + 1;
+                    if (h->buffer[i] == '\r' && (i + 1) < h->buffer_len && h->buffer[i+1] == '\n') {
+                        found = i + 2;
+                    }
                     break;
                 }
             }
@@ -156,9 +195,9 @@ _kernel_oserror *socket_read_line(int handle, char *buffer, int *size)
 
     if (found) {
         int to_copy = (found < max) ? found : max;
-        memcpy(buffer, handles[handle].buffer, to_copy);
-        memmove(handles[handle].buffer, handles[handle].buffer + found, handles[handle].buffer_len - found);
-        handles[handle].buffer_len -= found;
+        memcpy(buffer, h->buffer, to_copy);
+        memmove(h->buffer, h->buffer + found, h->buffer_len - found);
+        h->buffer_len -= found;
         *size = to_copy;
         return NULL;
     }
@@ -167,10 +206,9 @@ _kernel_oserror *socket_read_line(int handle, char *buffer, int *size)
     return NULL;
 }
 
-_kernel_oserror *socket_send_data(int handle, const void *data, int *size)
+_kernel_oserror *socket_send_data(socket_handle_t *h, const void *data, int *size)
 {
-    int s = handles[handle].socket_fd;
-    int n = send(s, data, *size, 0);
+    int n = send(h->socket_fd, data, *size, 0);
     if (n < 0) {
         static _kernel_oserror err = {0, "Send data failed"};
         return &err;
@@ -179,48 +217,43 @@ _kernel_oserror *socket_send_data(int handle, const void *data, int *size)
     return NULL;
 }
 
-_kernel_oserror *socket_read_data(int handle, void *buffer, int *size)
+_kernel_oserror *socket_read_data(socket_handle_t *h, void *buffer, int *size)
 {
-    int s = handles[handle].socket_fd;
     int n;
-    if (handles[handle].buffer_len > 0) {
-        int to_copy = (*size < handles[handle].buffer_len) ? *size : handles[handle].buffer_len;
-        memcpy(buffer, handles[handle].buffer, to_copy);
-        memmove(handles[handle].buffer, handles[handle].buffer + to_copy, handles[handle].buffer_len - to_copy);
-        handles[handle].buffer_len -= to_copy;
+    if (h->buffer_len > 0) {
+        int to_copy = (*size < h->buffer_len) ? *size : h->buffer_len;
+        memcpy(buffer, h->buffer, to_copy);
+        memmove(h->buffer, h->buffer + to_copy, h->buffer_len - to_copy);
+        h->buffer_len -= to_copy;
         *size = to_copy;
         return NULL;
     }
-    n = recv(s, buffer, *size, 0);
+    n = recv(h->socket_fd, buffer, *size, 0);
     if (n < 0) {
         *size = 0;
-        return NULL; // Might be EWOULDBLOCK
+        return NULL;
     }
     *size = n;
     return NULL;
 }
 
-_kernel_oserror *socket_closed(int handle, int *closed)
+_kernel_oserror *socket_closed(socket_handle_t *h, int *closed)
 {
     char dummy;
-    int n = recv(handles[handle].socket_fd, &dummy, 1, MSG_PEEK);
-    if (n == 0) {
-        *closed = 1;
-    } else {
-        *closed = 0;
-    }
+    int n = recv(h->socket_fd, &dummy, 1, MSG_PEEK);
+    *closed = (n == 0);
     return NULL;
 }
 
-_kernel_oserror *socket_listen(int port, int *handle)
+_kernel_oserror *socket_listen(int port, socket_handle_t **handle)
 {
     int s;
     struct sockaddr_in sin;
-    int i;
+    socket_handle_t *h;
     static _kernel_oserror err_sock = {0, "Socket creation failed"};
     static _kernel_oserror err_bind = {0, "Bind failed"};
     static _kernel_oserror err_list = {0, "Listen failed"};
-    static _kernel_oserror err_full = {0, "Too many open sockets"};
+    static _kernel_oserror err_mem  = {0, "Out of memory"};
 
     s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) return &err_sock;
@@ -240,71 +273,71 @@ _kernel_oserror *socket_listen(int port, int *handle)
         return &err_list;
     }
 
-    // Find free handle
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        if (!handles[i].active) {
-            handles[i].socket_fd = s;
-            handles[i].active = 1;
-            strcpy(handles[i].remote_name, "LISTENING");
-            handles[i].buffer_len = 0;
-            *handle = i;
-            return NULL;
-        }
+    h = socket_alloc();
+    if (!h) {
+        close(s);
+        return &err_mem;
     }
 
-    close(s);
-    return &err_full;
+    h->socket_fd = s;
+    h->remote_name = socket_strdup("LISTENING");
+    h->port = port;
+    h->state = 3; // Listening
+    *handle = h;
+    return NULL;
 }
 
-_kernel_oserror *socket_accept(int listen_handle, int *new_handle)
+_kernel_oserror *socket_accept(socket_handle_t *lh, socket_handle_t **new_handle)
 {
     int s;
     struct sockaddr_in sin;
     int len = sizeof(sin);
-    int i;
+    socket_handle_t *h;
     static _kernel_oserror err_accp = {0, "Accept failed"};
-    static _kernel_oserror err_full = {0, "Too many open sockets"};
+    static _kernel_oserror err_mem  = {0, "Out of memory"};
 
-    s = accept(handles[listen_handle].socket_fd, (struct sockaddr *)&sin, &len);
+    s = accept(lh->socket_fd, (struct sockaddr *)&sin, &len);
     if (s < 0) return &err_accp;
 
-    // Find free handle
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        if (!handles[i].active) {
-            handles[i].socket_fd = s;
-            handles[i].active = 1;
-            strcpy(handles[i].remote_name, inet_ntoa(sin.sin_addr));
-            handles[i].buffer_len = 0;
-            *new_handle = i;
-            return NULL;
-        }
+    h = socket_alloc();
+    if (!h) {
+        close(s);
+        return &err_mem;
     }
 
-    close(s);
-    return &err_full;
+    h->socket_fd = s;
+    h->remote_name = socket_strdup(inet_ntoa(sin.sin_addr));
+    h->port = ntohs(sin.sin_port);
+    h->state = 4; // Connected
+    *new_handle = h;
+    return NULL;
 }
 
-_kernel_oserror *socket_connection_name(int handle, char **name)
+_kernel_oserror *socket_connection_name(socket_handle_t *h, char **name)
 {
-    if (handle < 0 || handle >= MAX_SOCKET_HANDLES || !handles[handle].active) {
-        *name = "";
-        return NULL;
-    }
-    *name = handles[handle].remote_name;
+    *name = h->remote_name;
     return NULL;
+}
+
+void socket_close_all(void)
+{
+    while (socket_list) {
+        socket_handle_t *next = socket_list->next;
+        socket_free(socket_list);
+        socket_list = next;
+    }
 }
 
 void socket_enumerate(void)
 {
-    int i;
+    socket_handle_t *h = socket_list;
     int count = 0;
-    printf("Handle  Remote Host\n");
-    printf("------  -----------\n");
-    for (i = 0; i < MAX_SOCKET_HANDLES; i++) {
-        if (handles[i].active) {
-            printf("%6d  %s\n", i, handles[i].remote_name);
-            count++;
-        }
+    printf("Handle      Remote Host\n");
+    printf("----------  -----------\n");
+    while (h) {
+        printf("%08X  %s\n", (unsigned int)h, h->remote_name);
+        count++;
+        h = h->next;
     }
     printf("Total: %d active connections\n", count);
 }
