@@ -177,6 +177,31 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw);
 /* Special error for 'SWI values out of range for this module' */
 #define error_BAD_SWI ((_kernel_oserror *) -1)
 
+
+/***************************************************************************
+ * Function:     Event_Entry
+ * Description:  Symbol for entry point to module - NOT a C function.
+ *               This name should be used as an argument to
+ *               OS_Claim/OS_Release as required, but should never be called
+ *               from C.
+ **************************************************************************/
+extern void Event_Entry(void);
+
+
+/***************************************************************************
+ * Function:     Event_Handler
+ * Description:  Event handler routine. Events will be passed to this
+ *               routine if they are in the accept list (or all, if no list
+ *               was provided).
+ * Parameters:   r  = pointer to register block on entry
+ *               pw = private word for module
+ * On exit:      Update r to alter return values.
+ *               Return 0 to claim event (pulling return address from the
+ *               stack).
+ *               Return non-0 to pass on (returning via r14).
+ **************************************************************************/
+int Event_Handler(_kernel_swi_regs *r, void *pw);
+
 /* Error base for this module */
 #define ERROR_BASE (0x00580000)
 /* Error messages embedded in the module header, based at &580000 */

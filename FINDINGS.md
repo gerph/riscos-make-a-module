@@ -34,23 +34,31 @@ The module provides the following * commands:
 - `*EMonitors`: Lists or manages socket monitors.
 
 ## Implementation Details (from Disassembly)
-- **Handle Structure:** The module uses a linked list of socket descriptors (likely allocated from the module heap using `OS_Module 6`).
-- **Handle Size:** Each handle block is 40 bytes (&28).
-- **Structure Fields (Approximate):**
-  - +0: Pointer to next handle
-  - +4: Magic number/ID (v1.03 uses &58000958 at +4)
-  - +8: Socket file descriptor (from `Socket_Creat`)
-  - +12: Pointer to remote hostname/IP string (allocated via `OS_Module 6`)
-  - +16: Port number
-  - +20: State (4 = connected, 3 = listening, etc.)
-  - +24: Timestamp/last activity?
-  - +28: Pointer to buffer (allocated via `OS_Module 6`, initial size 4096)
-  - +32: Buffer size
-  - +36: Buffer read offset?
-- **Buffering:** Uses `Socket_Ioctl` to check for available data and `Socket_Read` to fill internal buffers. `ESocket_ReadLine` searches for `\n` or `\r` in these buffers.
-- **Monitoring:** `ESocket_Monitor` links an "ESocket" handle to a "Monitor" structure. Monitors seem to track activity and can be linked to other systems (e.g. Wimp messages).
-- **Error Handling:** Returns specific error blocks for "Bad ESocket handle" and "Not connected".
-- **Service Handler:** Responds to Service_WimpCloseDown (Service &53) to clean up sockets when an application quits.
+- **Initialisation:**
+  - Claims `EventV` (Event 16).
+  - Enables `Event_Internet` (19) and `Event_OutputEmpty` (2) via `OS_Byte 14`.
+  - Allocates &180 bytes of workspace via `OS_Module 6`.
+- **Finalisation:**
+  - Releases `EventV`.
+  - Disables events via `OS_Byte 13`.
+  - Frees workspace via `OS_Module 7`.
+- **Event Handling:**
+  - Uses `Event_Internet` to track socket state changes.
+  - Uses `Event_OutputEmpty`? (Need to clarify why Event 2 is used, usually it's for buffer empty).
+- **Socket Operations:**
+  - Uses `Socket_Ioctl` extensively to set sockets to non-blocking mode (FIONBIO).
+  - Uses `Socket_Select` in some places (likely for checking if data is ready).
+  - Uses `Resolver_GetHost` for background/asynchronous DNS resolution.
+  - The module seems to handle asynchronous connection state transitions via events.
+- **SWI Dispatch:**
+  - Uses a standard branch table for SWI offsets 0-12.
+- **Service Handler:**
+  - Handles `Service_WimpCloseDown` (&53) to clean up sockets owned by a task. Uses `R0` (task handle) to identify which sockets to close.
+
+## Unclear Parts
+- **Event 2:** Why is the module enabling "Character entering buffer" (Event 2)? This is usually for serial/parallel ports or VDU. It might be related to how it handles callbacks or internal task scheduling.
+- **Workspace Layout:** The static allocation of &180 bytes suggests some global state beyond the handle list.
+- **Magic Numbers:** There are several ADRs to constant blocks that look like error messages or bitmask tables.
 
 ## SWI Refinements
 - `ESocket_ConnectToHost`: Uses `Resolver_GetHost` for DNS.

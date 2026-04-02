@@ -49,6 +49,8 @@ finalisation-code: Mod_Final
 
 service-call-handler: Mod_Service &53
 
+event-handler: Event_Entry/Event_Handler 2 19
+
 command-keyword-table: Mod_Command,
     ESockets(min-args: 0, max-args: 0, help-text: "Lists active socket connections."),
     EMonitors(min-args: 0, max-args: 0, help-text: "Lists active socket monitors.")

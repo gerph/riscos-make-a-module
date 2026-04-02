@@ -18,12 +18,8 @@
 - Support for listening and accepting connections.
 - Command-line interface for connection monitoring.
 
-## Deficiencies vs Original Module
-- [x] **Handle Management:** Switched to linked list of dynamically allocated blocks.
-- [x] **Handle Validation:** Implemented magic number check and list search for safety.
-- [x] **Buffering:** Implemented dynamic buffer extension in `socket_read_line`.
-- [x] **Line Endings:** `ESocket_ReadLine` now handles `\r`, `\n`, and `\r\n`.
-- [x] **Error Handling:** Added specific error blocks for `Bad ESocket handle` and `Not connected`.
-- [x] **Service Handler:** Implemented `Service_WimpCloseDown` (&53) handler for cleanup.
-- [x] **Monitoring:** Implemented `ESocket_Monitor` and `ESocket_ResetMonitor` SWIs and `*EMonitors` command.
-- [x] **Hostname Resolution:** `ESocket_ConnectionName` returns the pointer to the `strdup`'d internal buffer.
+- [x] **Event Handling:** Module claims `EventV` and enables events 19 and 2.
+- [x] **Non-blocking I/O:** Sockets are set to non-blocking mode using `ioctl`.
+- [x] **WimpCloseDown Logic:** Implemented task-specific cleanup using Wimp task handles.
+- [ ] **DNS Resolution:** Original uses `Resolver_GetHost` (likely asynchronous). Current implementation uses `gethostbyname` (blocking).
+- [ ] **Workspace:** Original uses a fixed workspace block for some global state.

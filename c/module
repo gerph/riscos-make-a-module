@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "kernel.h"
+#include "swis.h"
 #include "modhead.h"
 #include "socketstate.h"
 
@@ -26,8 +27,20 @@
  **************************************************************************/
 _kernel_oserror *Mod_Init(const char *tail, int podule_base, void *pw)
 {
+    _kernel_oserror *err;
     dprintf("Module EasySocket initialised\n");
-    return socket_init();
+    err = socket_init();
+    if (err) return err;
+
+    // Claim EventV
+    err = _swix(OS_Claim, _INR(0,2), 16, Event_Entry, pw);
+    if (err) return err;
+
+    // Enable Events 2 and 19
+    _swix(OS_Byte, _INR(0,1), 14, 2);
+    _swix(OS_Byte, _INR(0,1), 14, 19);
+
+    return NULL;
 }
 
 
@@ -38,6 +51,14 @@ _kernel_oserror *Mod_Init(const char *tail, int podule_base, void *pw)
 _kernel_oserror *Mod_Final(int fatal, int podule_base, void *pw)
 {
     dprintf("Module EasySocket dying\n");
+
+    // Disable Events
+    _swix(OS_Byte, _INR(0,1), 13, 2);
+    _swix(OS_Byte, _INR(0,1), 13, 19);
+
+    // Release EventV
+    _swix(OS_Release, _INR(0,2), 16, Event_Entry, pw);
+
     return socket_final();
 }
 
@@ -223,7 +244,7 @@ _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw)
 void Mod_Service(int service_number, _kernel_swi_regs *r, void *pw)
 {
     if (service_number == 0x53) { // Service_WimpCloseDown
-        socket_close_all();
+        socket_close_all((unsigned int)r->r[0]);
     }
 }
 
@@ -243,4 +264,13 @@ _kernel_oserror *Mod_Command(const char *arg_string, int argc, int number, void 
             break;
     }
     return NULL;
+}
+
+/***************************************************************************
+ * Function:     Event_Handler
+ * Description:  Handle Events for the module.
+ **************************************************************************/
+int Event_Handler(_kernel_swi_regs *r, void *pw)
+{
+    return socket_event_handler(r, pw);
 }

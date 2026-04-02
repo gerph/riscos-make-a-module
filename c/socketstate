@@ -9,7 +9,9 @@
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <sys/errno.h>
 #include "kernel.h"
+#include "swis.h"
 #include "modhead.h"
 #include "socketstate.h"
 
@@ -79,6 +81,7 @@ static socket_handle_t *socket_alloc(void)
 {
     socket_handle_t *h = malloc(sizeof(socket_handle_t));
     if (h) {
+        _kernel_swi_regs regs;
         memset(h, 0, sizeof(socket_handle_t));
         h->magic = SOCKET_MAGIC;
         h->socket_fd = -1;
@@ -87,6 +90,12 @@ static socket_handle_t *socket_alloc(void)
         if (!h->buffer) {
             free(h);
             return NULL;
+        }
+        // Get current Wimp task handle
+        h->task_handle = 0;
+        regs.r[0] = 0;
+        if (!_swix(Wimp_ReadSysInfo, _INR(0,0)|_OUT(0), &regs)) {
+            h->task_handle = regs.r[0];
         }
         h->next = socket_list;
         socket_list = h;
@@ -117,8 +126,15 @@ _kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t 
     memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
 
     if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-        close(s);
-        return &err_conn;
+        if (errno != EINPROGRESS) {
+            close(s);
+            return &err_conn;
+        }
+    }
+
+    {
+        int on = 1;
+        ioctl(s, FIONBIO, &on);
     }
 
     h = socket_alloc();
@@ -301,6 +317,11 @@ _kernel_oserror *socket_listen(int port, socket_handle_t **handle)
         return &err_list;
     }
 
+    {
+        int on = 1;
+        ioctl(s, FIONBIO, &on);
+    }
+
     h = socket_alloc();
     if (!h) {
         close(s);
@@ -327,6 +348,11 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, socket_handle_t **new_handle
     s = accept(lh->socket_fd, (struct sockaddr *)&sin, &len);
     if (s < 0) return &err_accp;
 
+    {
+        int on = 1;
+        ioctl(s, FIONBIO, &on);
+    }
+
     h = socket_alloc();
     if (!h) {
         close(s);
@@ -347,12 +373,17 @@ _kernel_oserror *socket_connection_name(socket_handle_t *h, char **name)
     return NULL;
 }
 
-void socket_close_all(void)
+void socket_close_all(unsigned int task_handle)
 {
-    while (socket_list) {
-        socket_handle_t *next = socket_list->next;
-        socket_free(socket_list);
-        socket_list = next;
+    socket_handle_t **curr = &socket_list;
+    while (*curr) {
+        if (task_handle == 0 || (*curr)->task_handle == task_handle) {
+            socket_handle_t *to_free = *curr;
+            *curr = to_free->next;
+            socket_free(to_free);
+        } else {
+            curr = &((*curr)->next);
+        }
     }
 }
 
@@ -360,10 +391,10 @@ void socket_enumerate(void)
 {
     socket_handle_t *h = socket_list;
     int count = 0;
-    printf("Handle      Remote Host\n");
-    printf("----------  -----------\n");
+    printf("Handle      Remote Host         Task\n");
+    printf("----------  -----------         ----\n");
     while (h) {
-        printf("%08X  %s\n", (unsigned int)h, h->remote_name);
+        printf("%08X  %-18s  %08X\n", (unsigned int)h, h->remote_name, h->task_handle);
         count++;
         h = h->next;
     }
@@ -406,7 +437,6 @@ _kernel_oserror *socket_monitor_validate(int monitor, socket_monitor_t **out)
         }
         m = m->next;
     }
-    // Reuse Err_BadHandle for simplicity or add a specific one
     return Err_BadHandle;
 }
 
@@ -422,4 +452,10 @@ void socket_monitor_enumerate(void)
         m = m->next;
     }
     printf("Total: %d active monitors\n", count);
+}
+
+int socket_event_handler(_kernel_swi_regs *r, void *pw)
+{
+    // Stub for now
+    return 1; // Pass on
 }

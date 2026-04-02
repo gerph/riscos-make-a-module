@@ -18,6 +18,7 @@ typedef struct socket_handle {
     char *buffer;
     int buffer_size;
     int buffer_len;
+    unsigned int task_handle;
 } socket_handle_t;
 
 typedef struct socket_monitor {
@@ -45,10 +46,12 @@ _kernel_oserror *socket_listen(int port, socket_handle_t **handle);
 _kernel_oserror *socket_accept(socket_handle_t *listen_handle, socket_handle_t **new_handle);
 _kernel_oserror *socket_connection_name(socket_handle_t *handle, char **name);
 void socket_enumerate(void);
-void socket_close_all(void);
+void socket_close_all(unsigned int task_handle);
 
 _kernel_oserror *socket_monitor(socket_handle_t *handle, socket_monitor_t **monitor);
 _kernel_oserror *socket_reset_monitor(socket_monitor_t *monitor);
 void socket_monitor_enumerate(void);
+
+int socket_event_handler(_kernel_swi_regs *r, void *pw);
 
 #endif
