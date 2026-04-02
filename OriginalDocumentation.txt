@@ -1,0 +1,318 @@
+EasySockets v1.16 (15 Nov 2002)
+=========== © Justin Fletcher
+
+Introduction
+------------
+This module is a simple interface to the Socket handling SWIs. A single module
+is supplied, the ESockets module, along with EClient, a simple basic program
+that you should run in a taskwindow and provides a 'raw' connection to a
+server.
+
+Note: SWI chunk is now registered as &51C00.
+
+
+Connecting to hosts
+-------------------
+SYS "ESocket_ConnectToHost",host$,port TO handle
+  attempts to connect to a host
+
+SYS "ESocket_CheckState",handle TO state
+  returns the state of the connection :
+    1 we're looking things up
+    2 we've looked it up and are trying to connect
+    4 we've connected and are ready to go !
+   -1 Host lookup failed (no such host)
+   -2 Resolver failure (no response, etc)
+   -3 Resolver error (it might not be running !)
+   -4 No sockets left to create connection
+   -5 Host is unreachable
+   -6 Connection refused (not listening on that port)
+
+SYS "ESocket_Forget",handle
+  will forget about a handle
+
+SYS "ESocket_DecodeState",state TO name$
+  will convert the state number into a textual error string that should
+  make more sense.
+
+You should use something like the following to connect :
+
+SYS "ESocket_ConnectToHost",host$,port TO handle
+REPEAT
+ SYS "ESocket_CheckState",handle TO state
+UNTIL state=4 OR state<0
+IF state<0 THEN
+ SYS "ESocket_DecodeState",state TO error$
+ [give an error]
+ SYS "ESocket_Forget",handle
+ELSE
+ [do things with socket]
+ SYS "ESocket_Forget",handle
+ENDIF
+
+
+Using the sockets
+-----------------
+SYS "ESocket_SendLine",handle,string$,flags
+  sends a line to the other end; flags are :
+   bit 0 set if you DON'T want a CR sending
+   bit 1 set if you DON'T want a LF sending
+   bit 2 set if the string is terminated by a 13 (otherwise 0)
+  this means you'd do something like :
+   SYS "ESocket_SendLine",handle,"Hello",%000
+  most of the time, or :
+   SYS "ESocket_SendLine",handle,line,%100
+  if you've previously done $line="Hello"
+
+SYS "ESocket_ReadLine",handle,buffer,len,flags TO ,buf,len
+  which will read a whole line into a buffer, if the buffer
+  is not big enough buf is returned as 0 and len as the length
+  required, otherwise it's the length of the string.
+  return values are therefore :
+   buf  len
+    0    0   no complete line received yet
+    0   any  a line is available of length len (not fitting
+             into your buffer)
+   any  any  line of length len was read into your buffer
+   any   0   zero length line was read into your buffer
+  flags is a similar bit map to SendLine :
+   bit 0 & 1 can be :
+      %00 to use CR LF as a terminator
+      %01 to use LF as a terminator
+      %10 to use CR as a terminator
+      %11 to use either CR or LF as a terminator
+   bit 2 should be set to return the data terminated with 13
+   rather than 0.
+   bit 3 should be set to remove characters deleted with codes
+   8 or 127. In this case the returned len is only valid when
+   the buffer is. If the buffer is 0, the length is guarenteed
+   to be greater than or equal to the true line length.
+
+SYS "ESocket_SendData",handle,buffer,len TO sent
+  will send a block of data. The amount of data sent is returned.
+
+SYS "ESocket_ReadData",handle,buffer,len TO ,,len
+  will read a block of data. If buffer = 0 then the length of
+  data currently available will be returned in len. If not
+  enough data is available then the length of that read is
+  returned.
+
+SYS "ESocket_Closed",handle,flags TO closed
+  returns 1 if the socket has been closed, 0 if not
+  flags can be set :
+   bit 0 will ignore data in the buffer (useful for ReadLine connections)
+
+
+Listening for connections
+-------------------------
+SYS "ESocket_Listen",port TO handle
+  will attempt to listen on a port. However, if an error occurs handle
+  will be :
+    -4  No sockets left to create connection
+    -7  Couldn't listen on that port, something else is
+  
+  If the port is 0, a new port will be allocated for you.
+
+SYS "ESocket_Accept",handle,flags TO newhandle
+  will accept a connection on a listening port.
+  flags can be :
+   bit 0 set to close the listening port after accepting
+  newhandle might be returned as :
+    -8  Nobody has connected to the port yet
+
+You might do something like :
+
+SYS "ESocket_Listen",port TO listen
+IF listen>0 THEN
+ REPEAT
+  SYS "ESocket_Accept",listen,%1 TO handle
+ UNTIL handle<>-8
+ [do stuff with the socket - note that listener has gone]
+ SYS "ESocket_Forget",handle
+ELSE
+ [report listen errors]
+ENDIF
+
+SYS "ESocket_ConnectionName",handle TO name
+  will return 0 if no name is known for that connection, or
+  the pointer to a zero terminated name otherwise. Connection
+  names are resolved multitaskingly.
+
+SYS "ESocket_OurAddress",handle TO ip,port
+  will return the address and port number allocated to a socket. Note
+  that if you are listening the ip is not likely to be 'correct'.
+
+SYS "ESocket_TheirAddress",handle TO ip,port
+  will return the address and port number which has been connected to.
+
+
+Monitors
+--------
+SYS "ESocket_Monitor",type,... TO monitor
+  Monitors are a means by which sockets can be watched for changes without
+  having to continually poll them. There can be maybe 'types' of monitors,
+  but at present only one is defined :
+    type   meaning
+     0     checks for input or closure of a socket, and also marks keyboard
+           input. Format :
+           SYS "ESocket_Monitor",0,handle TO monitor
+
+SYS "ESocket_ResetMonitor",monitor,newaddress TO pollword
+  is used to reset a monitor back to zero once an active event has been
+  identified. If newaddress is 0 then the current address is used.
+
+SYS "Esocket_Forget",monitor
+  will forget about a monitor.
+
+Usually TaskWindow programs will have something like :
+
+SYS "ESocket_Monitor",0,handle TO monitor
+SYS "ESocket_ResetMonitor",monitor,0 TO polladdr
+REPEAT
+ SYS "OS_UpCall",6,polladdr
+ IF !polladdr THEN
+  SYS "ESocket_ResetMonitor",monitor,0
+  [process input]
+ ENDIF
+UNTIL <exit condition>
+SYS "ESocket_Forget",monitor
+
+
+Additional
+----------
+In the interests of ease and stopping people being foolish, EasySocket
+will automatically close all sockets and monitors associated with a
+particular task on it's exit. This means that you cannot pass socket handles
+from one task to another safely, but does mean that in 99.9% of situations
+things which have broken can safely exit knowing that they will be tidied up
+after.
+
+Do not rely on this, it's for your protection, not for your use.
+
+
+*Commands
+---------
+EasySockets provides two *Commands, *ESockets and *EMonitors.
+
+*ESockets
+  lists the connections currently made. Information displayed may seem
+  technical and probably is.
+
+*EMonitors
+  lists the monitors currently running. These will reference the handles
+  from *ESockets so you'll probably have to use both to understand.
+
+
+Resolvers
+---------
+ESockets /only/ uses the registered multi-tasking lookup interface to the
+resolvers. Because of this it will only work with the Acorn or ANT resolvers.
+I will support no other resolvers in this module.
+
+
+Example code
+------------
+The example code included is very simple. Some is documented so it should be
+possible to find out what you need to know. If you are having problems I
+suggest you contact me to ask what's going on.
+
+
+Comments
+--------
+I can't actually see that you'd need much more than this in the majority
+of internet programs. In fact, if you do need more than this then you
+know what you are doing and shouldn't be using it anyhow. However, it's
+entirely possible that I've missed something blatantly obvious. If that's
+so then could you please contact me and I can beat my head against a
+wall :-)
+
+
+Bugs
+----
+If you RMKill it it'll just leave all it's memory allocated and sockets open.
+There's a good reason for this. It's to disuade you from doing it. Ok ?
+
+
+Buffering concerns
+------------------
+Because of the way in which things are buffered, if you receive a line
+containing over 4096 characters without a terminator (one you've asked for)
+then the connection will effectively die unless you do a ReadData. The limit
+itself is to prevent massive RMA fragmentation and such like. Removing the
+limit would allow people almost direct access to your RMA which they could
+quite easily fill by just sending lots of junk non-terminated lines.
+
+If anyone can suggest a way of coping with this situation I'd like to hear.
+My personal favourite I've got is to set a bit in the flags that says 'if
+we've reached the maximum size for the buffer and there isn't a terminator in
+there then (grin) destroy the lot'. Or possibly '<as above, but don't destroy
+it; instead> return it to me as if it was a line'.
+
+
+Use of this module
+------------------
+Permission for any freeware, shareware or public domain use of EasySockets is
+explicitly give. Permission for inclusion in an commercial package or
+publication is not given. Contact me for details.
+
+
+Contact
+-------
+Any comments, queries, donations or bug reports can be sent to Justin
+Fletcher at :
+
+E-Mail : networking@thevillage.ndirect.co.uk
+URL    : http://www.thevillage.ndirect.co.uk/gerph/
+IRC    : On #Acorn as Gerph
+Tel    : (01842) 812276
+
+Snail Mail :
+    Justin Fletcher
+    ”Galadriel•
+    17b Cromwell Road,
+    Weeting,
+    Brandon,
+    Suffolk.
+    IP27 0QT
+
+
+History
+-------
+Version 1.00 : 04 Jan 1998
+               Began writing module after will-l et al presented an incredibly
+               good case for it's existance.
+Version 1.01 : 05 Jan 1998
+               Finished off most of the outstanding bits (like the code) and
+               wrote this documentation.
+               Now the only question is 'Do I mail this now, or go to bed ?'
+Version 1.02 : 06 Jan 1998 (Release 1, to will-l and with !TalkerD)
+               Numerous bug fixed to Listen and Accept.
+               Added flags to ESocket_Closed so that we don't lock on
+               ReadLines where they send a little data then disconnected.
+Version 1.03 : 27 Jan 1998 (Release 2, to will-l and Richard Murray, probably
+               on Freenet too)
+               Added monitors so that (hopefully) smIRC can be re-compiled
+               using ESockets instead of using his sockext library. Maybe then
+               it won't suck 99% of the life out of his machine!
+Version 1.04 : 29 Jan 1998 (Release 3, as above)
+               Fixed CheckState and Closed so that they work with clients that
+               don't send any initial message. Set keypressed event on
+               TaskWindow_Input so that serial/socket input to a taskwindow
+               triggers the pollword.
+Version 1.05 : 02 May 1998 (Release 4)
+               Fixed bug with Listen, added delete processing to ReadLine.
+Version 1.06 : 04 May 1998 (Release 5)
+               SWI Base allocated.
+Version 1.07 : 23 Jul 1998 (Release 6)
+               Non-blocking connections which are 'slow' now work correctly.
+               Hopefully this will let IckleRC and MyRC work correctly.
+               DecodeState call added for ease.
+               OurAddress added for FTP client.
+               SendData modified to now return the amount of data sent.
+               SendData now returns the amount of data is managed to send.
+               *ESockets now gives the textual description of the errors.
+Version 1.08 : 07 Nov 1998 (Release 7)
+               Problems with connections now fixed.
+               Many more examples included.
+Version 1.16 : 15 Nov 2002
+               Added ESocket_TheirAddress
