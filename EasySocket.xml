@@ -28,13 +28,20 @@ The module maintains an internal list of active socket handles. Each handle is a
 A socket can be in one of several states, which can be queried via <reference type="swi" name="ESocket_CheckState" />:
 </p>
 <p>
-<list type="unordered">
-<item>1: Looking up address</item>
-<item>2: Connecting to host</item>
-<item>3: Listening for connection</item>
-<item>4: Connected</item>
-<item>Negative values indicate error states (e.g., -1 for host lookup failed).</item>
-</list>
+<value-table>
+ <value number="1">Looking up address</value>
+ <value number="2">Connecting to host</value>
+ <value number="3">Listening for connection</value>
+ <value number="4">Connected</value>
+ <value number="-1">Host lookup failed (doesn't exist?)</value>
+ <value number="-2">Resolve failed (no response)</value>
+ <value number="-3">Resolver error (not running?)</value>
+ <value number="-4">No sockets left</value>
+ <value number="-5">Host is unreachable (network down?)</value>
+ <value number="-6">Connection refused (not listening at destination)</value>
+ <value number="-7">Could not bind to local port</value>
+ <value number="-8">Nobody connected to socket</value>
+</value-table>
 </p>
 </subsection>
 <subsection title="Multitasking and Non-blocking I/O">
@@ -117,11 +124,12 @@ Monitors allow Wimp applications to use <reference type="swi" name="OS_UpCall" /
      <item>0: CRLF</item>
      <item>1: LF</item>
      <item>2: CR</item>
-     <item>3: Any</list>
+     <item>3: Any</item>
+    </list>
    </bit>
    <bit number="2">Terminate output with character 13 (otherwise 0)</bit>
    <bit number="3">Process delete/backspace characters</bit>
-   <bit number="3-31" state="reserved" />
+   <bit number="4-31" state="reserved" />
   </bitfield-table>
  </register-use>
 </entry>
@@ -159,6 +167,155 @@ Monitors allow Wimp applications to use <reference type="swi" name="OS_UpCall" /
 </exit>
 <use>
 <p>Reads raw binary data from the socket. If R1 is 0, it returns the total number of bytes available to read immediately.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_Closed" number="51C07" description="Checks if a socket is closed">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+ <register-use number="1">Flags:
+  <bitfield-table>
+   <bit number="0">Ignore internal buffer (check socket directly)</bit>
+   <bit number="1-31" state="reserved" />
+  </bitfield-table>
+ </register-use>
+</entry>
+<exit>
+ <register-use number="0">1 if closed, 0 otherwise</register-use>
+</exit>
+<use>
+<p>Checks whether the connection has been closed by the remote host.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_Listen" number="51C08" description="Listens for incoming connections">
+<entry>
+ <register-use number="0">Local port number, or 0 to allocate</register-use>
+</entry>
+<exit>
+ <register-use number="0">ESocket handle, or negative error code</register-use>
+ <register-use number="1">Allocated port number (if R0 was 0 on entry)</register-use>
+</exit>
+<use>
+<p>Creates a listening socket on the specified port.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_Accept" number="51C09" description="Accepts an incoming connection">
+<entry>
+ <register-use number="0">ESocket handle of listening socket</register-use>
+ <register-use number="1">Flags:
+  <bitfield-table>
+   <bit number="0">Close the listening socket after accepting</bit>
+   <bit number="1-31" state="reserved" />
+  </bitfield-table>
+ </register-use>
+</entry>
+<exit>
+ <register-use number="0">New ESocket handle for the connection, or -8 if no connection is waiting</register-use>
+</exit>
+<use>
+<p>Accepts a connection waiting on a listening socket.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_ConnectionName" number="51C0A" description="Gets the name of the remote host">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+</entry>
+<exit>
+ <register-use number="0">Pointer to null-terminated hostname or IP string</register-use>
+</exit>
+<use>
+<p>Returns the name or IP address of the remote host associated with the socket.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_Monitor" number="51C0B" description="Creates a monitor for a socket">
+<entry>
+ <register-use number="0">Type (must be 0)</register-use>
+ <register-use number="1">ESocket handle</register-use>
+</entry>
+<exit>
+ <register-use number="0">Monitor handle</register-use>
+</exit>
+<use>
+<p>Creates a monitor object that can be used to poll for activity on a socket.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_ResetMonitor" number="51C0C" description="Resets a monitor's pollword">
+<entry>
+ <register-use number="0">Monitor handle</register-use>
+ <register-use number="1">Address of custom pollword (not currently supported, must be 0)</register-use>
+</entry>
+<exit>
+ <register-use number="0">Pointer to the monitor's pollword</register-use>
+</exit>
+<use>
+<p>Resets the monitor's pollword to 0 and returns its address.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_OurAddress" number="51C0D" description="Gets the local address and port">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+</entry>
+<exit>
+ <register-use number="0">Local IP address</register-use>
+ <register-use number="1">Local port number</register-use>
+</exit>
+<use>
+<p>Returns the local IP address and port number for the socket.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_DecodeState" number="51C0E" description="Converts a state number to a string">
+<entry>
+ <register-use number="0">State number</register-use>
+</entry>
+<exit>
+ <register-use number="0">Pointer to descriptive string</register-use>
+</exit>
+<use>
+<p>Converts a numeric connection state or error code into a human-readable string.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_TaskAssociation" number="51C0F" description="Associates a socket with the current task">
+<entry>
+ <register-use number="0">ESocket or Monitor handle</register-use>
+ <register-use number="1">1 to associate, 0 to dissociate</register-use>
+</entry>
+<exit />
+<use>
+<p>Manually changes the task association of a socket or monitor. Associated objects are automatically closed when the task terminates.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_ConnectToAddr" number="51C10" description="Connects to an IP address">
+<entry>
+ <register-use number="0">Remote IP address</register-use>
+ <register-use number="1">Remote port number</register-use>
+</entry>
+<exit>
+ <register-use number="0">ESocket handle, or negative error code</register-use>
+</exit>
+<use>
+<p>Initiates a connection to a specific remote IP address and port.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_TheirAddress" number="51C11" description="Gets the remote address and port">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+</entry>
+<exit>
+ <register-use number="0">Remote IP address</register-use>
+ <register-use number="1">Remote port number</register-use>
+</exit>
+<use>
+<p>Returns the remote IP address and port number for the socket.</p>
 </use>
 </swi-definition>
 
