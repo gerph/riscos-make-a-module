@@ -6,9 +6,9 @@
 
 title-string: EasySocket
 
-help-string: EasySocket 1.16a
+help-string: EasySocket 1.16a (02 Apr 2026) © Justin Fletcher
 
-swi-chunk-base-number: &58000
+swi-chunk-base-number: &51C00
 
 swi-handler-code: Mod_SWI
 
@@ -20,12 +20,13 @@ swi-decoding-table: ESocket,
                     DecodeState, TaskAssociation, ConnectToAddr,
                     TheirAddress
 
-error-base: &580000
+error-base: &51C00
 
 error-identifiers: \
     Err_BadHandle("Bad ESocket handle"), \
     Err_NotConnected("ESocket has yet to connect"), \
     Err_NotListening("ESocket is not listening"), \
+    Err_BadMonitorType("Unknown type passed to ESocket_Monitor"), \
     Err_InvalidIP("Invalid character in IP"), \
     Err_TooLow("ESocket destination buffer too low")
 

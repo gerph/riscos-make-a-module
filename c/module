@@ -1,7 +1,7 @@
 /*******************************************************************
  * File:        module
  * Purpose:     EasySocket module interface
- * Author:      YOUR NAME
+ * Author:      Justin Fletcher
  ******************************************************************/
 
 #include <stdlib.h>

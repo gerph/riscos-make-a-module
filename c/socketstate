@@ -110,11 +110,10 @@ static socket_handle_t *socket_alloc(void)
 {
     socket_handle_t *h = malloc(sizeof(socket_handle_t));
     if (h) {
-        _kernel_swi_regs regs;
         memset(h, 0, sizeof(socket_handle_t));
         h->magic = SOCKET_MAGIC;
         h->socket_fd = -1;
-        h->buffer_size = 256; // InitialBuffer
+        h->buffer_size = InitialBuffer;
         h->buffer = malloc(h->buffer_size);
         if (!h->buffer) {
             free(h);
@@ -133,14 +132,14 @@ static _kernel_oserror *parse_ip_literal(const char *hostname, unsigned int *ip)
         char *end;
         unsigned int a, b, c, d;
         const char *p = hostname + 1;
-        a = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
-        b = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
-        c = strtoul(p, &end, 10); if (*end != '.') return Err_BadHandle; p = end + 1;
-        d = strtoul(p, &end, 10); if (*end != ']') return Err_BadHandle;
+        a = strtoul(p, &end, 10); if (*end != '.') return Err_InvalidIP; p = end + 1;
+        b = strtoul(p, &end, 10); if (*end != '.') return Err_InvalidIP; p = end + 1;
+        c = strtoul(p, &end, 10); if (*end != '.') return Err_InvalidIP; p = end + 1;
+        d = strtoul(p, &end, 10); if (*end != ']') return Err_InvalidIP;
         *ip = (a & 0xFF) | ((b & 0xFF) << 8) | ((c & 0xFF) << 16) | ((d & 0xFF) << 24);
         return NULL;
     }
-    return Err_BadHandle;
+    return Err_InvalidIP;
 }
 
 _kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t **handle)
@@ -153,7 +152,7 @@ _kernel_oserror *socket_connect(const char *hostname, int port, socket_handle_t 
 
     h->remote_name = socket_strdup(hostname);
     h->port = port;
-    h->state = 1; // S_Lookup
+    h->state = S_Lookup;
     *handle = h;
 
     socket_check_all();
@@ -171,10 +170,9 @@ void socket_check_all(void)
 {
     socket_handle_t *h = socket_list;
     while (h) {
-        if (h->state == 1) { // S_Lookup
+        if (h->state == S_Lookup) {
             unsigned int ip;
             if (parse_ip_literal(h->remote_name, &ip) == NULL) {
-                // IP literal
                 struct sockaddr_in sin;
                 int s = socket(AF_INET, SOCK_STREAM, 0);
                 if (s >= 0) {
@@ -187,23 +185,20 @@ void socket_check_all(void)
                     sin.sin_port = htons(h->port);
                     sin.sin_addr.s_addr = ip;
                     if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-                        if (errno == EINPROGRESS) h->state = 2; // S_Connecting
-                        else h->state = -5; // S_Unreachable
+                        if (errno == EINPROGRESS) h->state = S_Connecting;
+                        else h->state = S_Unreachable;
                     } else {
-                        h->state = 4; // S_Connected
+                        h->state = S_Connected;
                     }
                 } else {
-                    h->state = -4; // S_NoSockets
+                    h->state = S_NoSockets;
                 }
             } else {
-                // DNS Lookup
                 _kernel_swi_regs regs;
                 regs.r[0] = (int)h->remote_name;
                 if (!_swix(Resolver_GetHost, _INR(0,0)|_OUTR(0,1), &regs)) {
                     if (regs.r[0] == 36) { // Pending
-                        // Still lookup
                     } else if (regs.r[1] != 0) {
-                        // Success
                         struct hostent *hp = (struct hostent *)regs.r[1];
                         struct sockaddr_in sin;
                         int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -217,23 +212,22 @@ void socket_check_all(void)
                             sin.sin_port = htons(h->port);
                             memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
                             if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-                                if (errno == EINPROGRESS) h->state = 2; // S_Connecting
-                                else h->state = -5; // S_Unreachable
+                                if (errno == EINPROGRESS) h->state = S_Connecting;
+                                else h->state = S_Unreachable;
                             } else {
-                                h->state = 4; // S_Connected
+                                h->state = S_Connected;
                             }
                         } else {
-                            h->state = -4; // S_NoSockets
+                            h->state = S_NoSockets;
                         }
                     } else {
-                        h->state = -1; // S_NoSuchHost
+                        h->state = S_NoSuchHost;
                     }
                 } else {
-                    h->state = -3; // S_ResolveError
+                    h->state = S_ResolveError;
                 }
             }
-        } else if (h->state == 2) { // S_Connecting
-            // Check if connected
+        } else if (h->state == S_Connecting) {
             struct fd_set write_fds;
             struct timeval tv;
             int error = 0;
@@ -244,11 +238,11 @@ void socket_check_all(void)
             FD_SET(h->socket_fd, &write_fds);
             if (select(h->socket_fd + 1, NULL, &write_fds, NULL, &tv) > 0) {
                 if (getsockopt(h->socket_fd, SOL_SOCKET, SO_ERROR, &error, &len) == 0) {
-                    if (error == 0) h->state = 4; // S_Connected
-                    else if (error == ECONNREFUSED) h->state = -6; // S_NotListening
-                    else h->state = -5; // S_Unreachable
+                    if (error == 0) h->state = S_Connected;
+                    else if (error == ECONNREFUSED) h->state = S_NotListening;
+                    else h->state = S_Unreachable;
                 } else {
-                    h->state = -5;
+                    h->state = S_Unreachable;
                 }
             }
         }
@@ -314,7 +308,7 @@ _kernel_oserror *socket_send_line(socket_handle_t *h, const char *line, int flag
     char cr = 13;
     char lf = 10;
 
-    if (h->state != 4) return Err_NotConnected;
+    if (h->state != S_Connected) return Err_NotConnected;
 
     if (flags & 4) { // 13-terminated
         while (line[len] != 13) len++;
@@ -349,9 +343,8 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
     int return_len;
     int strip;
 
-    if (h->state != 4) return Err_NotConnected;
+    if (h->state != S_Connected) return Err_NotConnected;
 
-    // Search in existing buffer
     for (i = 0; i < h->buffer_len; i++) {
         int match = 0;
         char c = h->buffer[i];
@@ -387,7 +380,6 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
         if (n > 0) {
             h->buffer_len += n;
             update_monitors(h, 0, n);
-            // Re-search
             for (i = 0; i < h->buffer_len; i++) {
                 int match = 0;
                 char c = h->buffer[i];
@@ -418,7 +410,7 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
                 if (match) break;
             }
         }
-        if (!found && h->buffer_len == h->buffer_size && h->buffer_size < 32768) {
+        if (!found && h->buffer_len == h->buffer_size && h->buffer_size < MaximumBuffer) {
             int new_size = h->buffer_size * 2;
             char *new_buf = realloc(h->buffer, new_size);
             if (new_buf) {
@@ -467,7 +459,7 @@ _kernel_oserror *socket_read_line(socket_handle_t *h, char *buffer, int *size, i
 _kernel_oserror *socket_send_data(socket_handle_t *h, const void *data, int *size)
 {
     int n;
-    if (h->state != 4) return Err_NotConnected;
+    if (h->state != S_Connected) return Err_NotConnected;
     n = send(h->socket_fd, data, *size, 0);
     if (n < 0) {
         static _kernel_oserror err = {0, "Send data failed"};
@@ -481,7 +473,7 @@ _kernel_oserror *socket_send_data(socket_handle_t *h, const void *data, int *siz
 _kernel_oserror *socket_read_data(socket_handle_t *h, void *buffer, int *size)
 {
     int n, avail, s_avail;
-    if (h->state != 4) return Err_NotConnected;
+    if (h->state != S_Connected) return Err_NotConnected;
     if (buffer == NULL) {
         avail = h->buffer_len;
         s_avail = 0;
@@ -511,7 +503,7 @@ _kernel_oserror *socket_closed(socket_handle_t *h, int flags, int *closed)
 {
     char dummy;
     int n;
-    if (h->state != 4) {
+    if (h->state != S_Connected) {
         *closed = 1;
         return NULL;
     }
@@ -572,7 +564,7 @@ _kernel_oserror *socket_listen(int port, socket_handle_t **handle)
     } else {
         h->port = port;
     }
-    h->state = 3; // Listening
+    h->state = S_Listening;
     *handle = h;
     return NULL;
 }
@@ -587,15 +579,12 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, int flags, socket_handle_t *
     static _kernel_oserror err_accp = {0, "Accept failed"};
     static _kernel_oserror err_mem  = {0, "Out of memory"};
 
-    if (lh->state != 3) {
-        static _kernel_oserror err_nl = {0, "ESocket is not listening"};
-        return &err_nl;
-    }
+    if (lh->state != S_Listening) return Err_NotListening;
 
     s = accept(lh->socket_fd, (struct sockaddr *)&sin, &len);
     if (s < 0) {
         if (errno == EWOULDBLOCK) {
-            *new_handle = (socket_handle_t *)-8;
+            *new_handle = (socket_handle_t *)S_NooneThere;
             return NULL;
         }
         return &err_accp;
@@ -613,7 +602,7 @@ _kernel_oserror *socket_accept(socket_handle_t *lh, int flags, socket_handle_t *
     h->socket_fd = s;
     h->remote_name = socket_strdup(inet_ntoa(sin.sin_addr));
     h->port = ntohs(sin.sin_port);
-    h->state = 4; // Connected
+    h->state = S_Connected;
     *new_handle = h;
 
     if (flags & 1) {
@@ -692,7 +681,6 @@ _kernel_oserror *socket_reset_monitor(socket_monitor_t *m, unsigned int *new_add
 {
     m->pollword = 0;
     if (new_addr) {
-        // Not implemented: original allowed setting custom pollword address
     }
     *poll_addr = (unsigned int *)&(m->pollword);
     return NULL;
@@ -749,18 +737,18 @@ void socket_trigger_monitors(int handle)
 const char *socket_decode_state(int state)
 {
     switch (state) {
-        case 1: return "Looking up address";
-        case 2: return "Connecting to host";
-        case 3: return "Listening for connection";
-        case 4: return "Connected";
-        case -1: return "Host lookup failed (doesn't exist?)";
-        case -2: return "Resolve failed (no response)";
-        case -3: return "Resolver error (not running?)";
-        case -4: return "No sockets left";
-        case -5: return "Host is unreachable (network down?)";
-        case -6: return "Connection refused (not listening at destination)";
-        case -7: return "Could not bind to local port";
-        case -8: return "Nobody connected to socket";
+        case S_Lookup: return "Looking up address";
+        case S_Connecting: return "Connecting to host";
+        case S_Listening: return "Listening for connection";
+        case S_Connected: return "Connected";
+        case S_NoSuchHost: return "Host lookup failed (doesn't exist?)";
+        case S_ResolveFailure: return "Resolve failed (no response)";
+        case S_ResolveError: return "Resolver error (not running?)";
+        case S_NoSockets: return "No sockets left";
+        case S_Unreachable: return "Host is unreachable (network down?)";
+        case S_NotListening: return "Connection refused (not listening at destination)";
+        case S_BindError: return "Could not bind to local port";
+        case S_NooneThere: return "Nobody connected to socket";
         default: return "*** Unknown state ***";
     }
 }
@@ -770,7 +758,7 @@ _kernel_oserror *socket_get_address(socket_handle_t *h, int remote, unsigned int
     struct sockaddr_in sin;
     int len = sizeof(sin);
     int res;
-    if (h->state != 4 && h->state != 3) return Err_BadHandle;
+    if (h->state != S_Connected && h->state != S_Listening) return Err_NotConnected;
     if (remote) res = getpeername(h->socket_fd, (struct sockaddr *)&sin, &len);
     else res = getsockname(h->socket_fd, (struct sockaddr *)&sin, &len);
     if (res < 0) {

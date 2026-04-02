@@ -1,0 +1,199 @@
+<?xml version="1.0"?>
+<!DOCTYPE riscos-prm PUBLIC "-//Gerph//DTD PRM documentation 1.03//EN"
+                            "http://gerph.org/dtd/103/prm.dtd">
+
+<riscos-prm>
+<chapter title="EasySocket">
+<section title="Introduction">
+<p>
+EasySocket is a simple, high-level interface to the RISC OS Socket handling SWIs. It provides an abstraction layer that allows applications to perform network operations without dealing with the complexities of the underlying TCP/IP stack directly.
+</p>
+</section>
+
+<section title="Overview">
+<p>
+The module manages two primary types of objects: sockets and monitors. Sockets represent network connections or listening points, while monitors provide a mechanism for multitasking applications to wait for events on those sockets using pollwords.
+</p>
+<p>
+The module is designed to be easy to use from high-level languages like BBC BASIC, providing string-oriented operations like <reference type="swi" name="ESocket_SendLine" /> and <reference type="swi" name="ESocket_ReadLine" /> alongside raw data transfers.
+</p>
+</section>
+
+<section title="Technical details">
+<p>
+The module maintains an internal list of active socket handles. Each handle is a pointer to a workspace block containing the socket's state, buffers, and metadata. Handles are validated using a magic number (&hex;FEEF1EF0).
+</p>
+<subsection title="Connection States">
+<p>
+A socket can be in one of several states, which can be queried via <reference type="swi" name="ESocket_CheckState" />:
+</p>
+<p>
+<list type="unordered">
+<item>1: Looking up address</item>
+<item>2: Connecting to host</item>
+<item>3: Listening for connection</item>
+<item>4: Connected</item>
+<item>Negative values indicate error states (e.g., -1 for host lookup failed).</item>
+</list>
+</p>
+</subsection>
+<subsection title="Multitasking and Non-blocking I/O">
+<p>
+All socket operations are performed in non-blocking mode. Connection establishment and DNS resolution (via the Resolver module) occur asynchronously. Applications should poll <reference type="swi" name="ESocket_CheckState" /> to track progress.
+</p>
+</subsection>
+<subsection title="Monitor Pollwords">
+<p>
+Monitors allow Wimp applications to use <reference type="swi" name="OS_UpCall" /> 6. The module updates a monitor's pollword when data arrives on the associated socket, when the connection is closed, or when keyboard activity is detected (via <reference type="vector" name="EventV" /> or Wimp filters).
+</p>
+</subsection>
+</section>
+
+<section title="SWI calls">
+
+<swi-definition name="ESocket_ConnectToHost" number="51C00" description="Connects to a remote host">
+<entry>
+ <register-use number="0">Pointer to null-terminated hostname or IP literal in [brackets]</register-use>
+ <register-use number="1">Port number</register-use>
+</entry>
+<exit>
+ <register-use number="0">ESocket handle, or negative error code</register-use>
+</exit>
+<use>
+<p>This SWI initiates a connection to the specified host. The process begins with an asynchronous DNS lookup if necessary.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_CheckState" number="51C01" description="Checks the status of a socket">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+</entry>
+<exit>
+ <register-use number="0">Connection state (1-4 or negative error)</register-use>
+</exit>
+<use>
+<p>Returns the current state of the connection. This SWI also triggers internal background processing for all active sockets.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_Forget" number="51C02" description="Closes a socket or monitor">
+<entry>
+ <register-use number="0">ESocket or Monitor handle</register-use>
+</entry>
+<exit />
+<use>
+<p>Closes the network connection and frees all associated memory. If a monitor handle is passed, the monitor is destroyed.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_SendLine" number="51C03" description="Sends a line of text">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+ <register-use number="1">Pointer to string</register-use>
+ <register-use number="2">Flags:
+  <bitfield-table>
+   <bit number="0">Do not send CR</bit>
+   <bit number="1">Do not send LF</bit>
+   <bit number="2">String is terminated by character 13 (otherwise 0)</bit>
+   <bit number="3-31" state="reserved" />
+  </bitfield-table>
+ </register-use>
+</entry>
+<exit />
+<use>
+<p>Sends a string to the remote host, optionally appending CR and/or LF.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_ReadLine" number="51C04" description="Reads a line of text">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+ <register-use number="1">Pointer to buffer</register-use>
+ <register-use number="2">Size of buffer</register-use>
+ <register-use number="3">Flags:
+  <bitfield-table>
+   <bit number="0-1">Terminator type:
+    <list type="unordered">
+     <item>0: CRLF</item>
+     <item>1: LF</item>
+     <item>2: CR</item>
+     <item>3: Any</list>
+   </bit>
+   <bit number="2">Terminate output with character 13 (otherwise 0)</bit>
+   <bit number="3">Process delete/backspace characters</bit>
+   <bit number="3-31" state="reserved" />
+  </bitfield-table>
+ </register-use>
+</entry>
+<exit>
+ <register-use number="1">Pointer to buffer, or 0 if no line available or buffer too small</register-use>
+ <register-use number="2">Length of line read, or size required if R1=0 on exit</register-use>
+</exit>
+<use>
+<p>Reads a line of text from the internal buffer. If a complete line is not available, it returns 0 in R1.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_SendData" number="51C05" description="Sends raw data">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+ <register-use number="1">Pointer to data</register-use>
+ <register-use number="2">Length of data</register-use>
+</entry>
+<exit>
+ <register-use number="0">Bytes actually sent</register-use>
+</exit>
+<use>
+<p>Sends raw binary data to the remote host.</p>
+</use>
+</swi-definition>
+
+<swi-definition name="ESocket_ReadData" number="51C06" description="Reads raw data">
+<entry>
+ <register-use number="0">ESocket handle</register-use>
+ <register-use number="1">Pointer to buffer (or 0 to query)</register-use>
+ <register-use number="2">Size of buffer</register-use>
+</entry>
+<exit>
+ <register-use number="2">Bytes read, or bytes available if R1 was 0 on entry</register-use>
+</exit>
+<use>
+<p>Reads raw binary data from the socket. If R1 is 0, it returns the total number of bytes available to read immediately.</p>
+</use>
+</swi-definition>
+
+</section>
+
+<section title="*Commands">
+<command-definition name="ESockets" description="Lists active socket connections">
+<use>
+<p>Displays a list of all active EasySocket handles, their remote addresses, ports, and current states.</p>
+</use>
+</command-definition>
+
+<command-definition name="EMonitors" description="Lists active monitors">
+<use>
+<p>Displays a list of all active monitors, including their pollword addresses and traffic statistics.</p>
+</use>
+</command-definition>
+</section>
+
+</chapter>
+
+<meta>
+ <maintainer>
+  <email name="Justin Fletcher" address="gerph@gerph.org" />
+ </maintainer>
+ <disclaimer>
+    <p>
+        &copy; Justin Fletcher, 2026.
+    </p>
+ </disclaimer>
+
+ <history>
+  <revision number="1" author="Justin Fletcher" date="02 Apr 2026" title="Initial version">
+    <change>Created documentation for version 1.16a.</change>
+  </revision>
+ </history>
+</meta>
+</riscos-prm>

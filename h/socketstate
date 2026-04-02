@@ -8,6 +8,22 @@
 #define SOCKET_MAGIC  0xFEEF1EF0
 #define MONITOR_MAGIC 0xBEEFFEED
 
+#define S_Lookup         1
+#define S_Connecting     2
+#define S_Listening      3
+#define S_Connected      4
+#define S_NoSuchHost    -1
+#define S_ResolveFailure -2
+#define S_ResolveError   -3
+#define S_NoSockets     -4
+#define S_Unreachable   -5
+#define S_NotListening  -6
+#define S_BindError     -7
+#define S_NooneThere    -8
+
+#define InitialBuffer 256
+#define MaximumBuffer (1024 * 32)
+
 typedef struct socket_handle {
     struct socket_handle *next;
     unsigned int magic;

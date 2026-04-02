@@ -1,0 +1,93 @@
+%YAML 1.0
+---
+
+# RISC OS build file to execute on https://build.riscos.online/
+
+# Source is optional (NYI), and should be a URL to source the content from
+#source: <url>
+
+# Defines a list of jobs which will be performed.
+# Only 1 job will currently be executed.
+jobs:
+  build:
+    # Env defines system variables which will be used within the environment.
+    # Multiple variables may be assigned.
+    env:
+      "Sys$Environment": ROBuild
+      "BUILD32": 1
+
+      # Faster building using the host toolchain
+      "Alias$AMU": "HostAMU %*0"
+
+    # Directory to change to before running script
+    #dir: <working directory>
+
+    # Commands which should be executed to perform the build.
+    # The build will terminate if any command returns a non-0 return code or an error.
+    script:
+
+      # Export our headers and libraries
+      - echo
+      - echo *** Export the headers or libs ***
+      - amu -f Makefile export
+
+      # Build modules (RAM)
+      - echo
+      - echo *** Build the RAM module (32-bit) ***
+      - amu -f Makefile ram
+
+      - echo
+      - echo *** Build the RAM module (26-bit) ***
+      - amu -f Makefile ram BUILD26=1 BUILD32=
+
+      # Build modules for ROM
+      - echo
+      - echo *** Build the ROM module (32-bit) ***
+      - amu -f Makefile rom
+
+      - echo
+      - echo *** Build the ROM module (26-bit) ***
+      - amu -f Makefile rom BUILD26=1 BUILD32=
+
+      # Tests - loading to check that it starts up
+      - echo
+      - echo *** Load the module ***
+      - RMLoad rm32.EasySocket
+
+      # Insert any testing here...
+      #- echo
+      #- echo *** Test that the module works ***
+      #- /TestModule
+
+      - echo
+      - echo *** Kill the module ***
+      - RMKill EasySocket
+
+      # Construct the artifacts to release
+      - echo *** Copy artifacts ***
+      - cdir Artifacts
+      - copy rm32 Artifacts.* ~CVR
+      - copy rm Artifacts.* ~CVR
+      - copy aof32 Artifacts.* ~CVR
+      - copy aof Artifacts.* ~CVR
+      - IfThere <Exports$Dir>.C.h.EasySocket Then cdir Artifacts.Lib
+      - IfThere <Exports$Dir>.C.h.EasySocket Then cdir Artifacts.Lib.h
+      - IfThere <Exports$Dir>.C.h.EasySocket Then copy <Exports$Dir>.C.h.EasySocket Artifacts.Lib.h.EasySocket ~CV
+      - IfThere <Exports$Dir>.Lib.EasySocket Then cdir Artifacts.Lib
+      - IfThere <Exports$Dir>.Lib.EasySocket Then copy <Exports$Dir>.Lib.EasySocket Artifacts.Lib.EasySocket ~CVR
+      # Remove the directory if it was empty
+      - X remove <Exports$Dir>.Lib.EasySocket
+      - X remove <Exports$Dir>.Lib
+      - IfThere LICENSE Then copy LICENSE Artifacts.* ~CV
+
+      # Done!
+      - echo
+      - echo *** SUCCESS ***
+
+    # Outputs from the build are defined in artifacts
+    # These are a list of artifacts to report directories or files.
+    # Only a single item is currently supported.
+    artifacts:
+      # Each element of the artifacts should have a path key, which gives the file or
+      # directory to return.
+      - path: Artifacts

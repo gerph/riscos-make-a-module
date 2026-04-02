@@ -120,79 +120,79 @@ _kernel_oserror *Mod_Command(const char *arg_string, int argc, int number,
 /* Function called to handle SWI calls */
 _kernel_oserror *Mod_SWI(int number, _kernel_swi_regs *r, void *pw);
 /* SWI number definitions */
-#define ESocket_00 (0x00058000)
+#define ESocket_00 (0x00051c00)
 #undef ESocket_ConnectToHost
 #undef XESocket_ConnectToHost
-#define ESocket_ConnectToHost     (0x00058000)
-#define XESocket_ConnectToHost    (0x00078000)
+#define ESocket_ConnectToHost     (0x00051c00)
+#define XESocket_ConnectToHost    (0x00071c00)
 #undef ESocket_CheckState
 #undef XESocket_CheckState
-#define ESocket_CheckState        (0x00058001)
-#define XESocket_CheckState       (0x00078001)
+#define ESocket_CheckState        (0x00051c01)
+#define XESocket_CheckState       (0x00071c01)
 #undef ESocket_Forget
 #undef XESocket_Forget
-#define ESocket_Forget            (0x00058002)
-#define XESocket_Forget           (0x00078002)
+#define ESocket_Forget            (0x00051c02)
+#define XESocket_Forget           (0x00071c02)
 #undef ESocket_SendLine
 #undef XESocket_SendLine
-#define ESocket_SendLine          (0x00058003)
-#define XESocket_SendLine         (0x00078003)
+#define ESocket_SendLine          (0x00051c03)
+#define XESocket_SendLine         (0x00071c03)
 #undef ESocket_ReadLine
 #undef XESocket_ReadLine
-#define ESocket_ReadLine          (0x00058004)
-#define XESocket_ReadLine         (0x00078004)
+#define ESocket_ReadLine          (0x00051c04)
+#define XESocket_ReadLine         (0x00071c04)
 #undef ESocket_SendData
 #undef XESocket_SendData
-#define ESocket_SendData          (0x00058005)
-#define XESocket_SendData         (0x00078005)
+#define ESocket_SendData          (0x00051c05)
+#define XESocket_SendData         (0x00071c05)
 #undef ESocket_ReadData
 #undef XESocket_ReadData
-#define ESocket_ReadData          (0x00058006)
-#define XESocket_ReadData         (0x00078006)
+#define ESocket_ReadData          (0x00051c06)
+#define XESocket_ReadData         (0x00071c06)
 #undef ESocket_Closed
 #undef XESocket_Closed
-#define ESocket_Closed            (0x00058007)
-#define XESocket_Closed           (0x00078007)
+#define ESocket_Closed            (0x00051c07)
+#define XESocket_Closed           (0x00071c07)
 #undef ESocket_Listen
 #undef XESocket_Listen
-#define ESocket_Listen            (0x00058008)
-#define XESocket_Listen           (0x00078008)
+#define ESocket_Listen            (0x00051c08)
+#define XESocket_Listen           (0x00071c08)
 #undef ESocket_Accept
 #undef XESocket_Accept
-#define ESocket_Accept            (0x00058009)
-#define XESocket_Accept           (0x00078009)
+#define ESocket_Accept            (0x00051c09)
+#define XESocket_Accept           (0x00071c09)
 #undef ESocket_ConnectionName
 #undef XESocket_ConnectionName
-#define ESocket_ConnectionName    (0x0005800a)
-#define XESocket_ConnectionName   (0x0007800a)
+#define ESocket_ConnectionName    (0x00051c0a)
+#define XESocket_ConnectionName   (0x00071c0a)
 #undef ESocket_Monitor
 #undef XESocket_Monitor
-#define ESocket_Monitor           (0x0005800b)
-#define XESocket_Monitor          (0x0007800b)
+#define ESocket_Monitor           (0x00051c0b)
+#define XESocket_Monitor          (0x00071c0b)
 #undef ESocket_ResetMonitor
 #undef XESocket_ResetMonitor
-#define ESocket_ResetMonitor      (0x0005800c)
-#define XESocket_ResetMonitor     (0x0007800c)
+#define ESocket_ResetMonitor      (0x00051c0c)
+#define XESocket_ResetMonitor     (0x00071c0c)
 #undef ESocket_OurAddress
 #undef XESocket_OurAddress
-#define ESocket_OurAddress        (0x0005800d)
-#define XESocket_OurAddress       (0x0007800d)
+#define ESocket_OurAddress        (0x00051c0d)
+#define XESocket_OurAddress       (0x00071c0d)
 #undef ESocket_DecodeState
 #undef XESocket_DecodeState
-#define ESocket_DecodeState       (0x0005800e)
-#define XESocket_DecodeState      (0x0007800e)
+#define ESocket_DecodeState       (0x00051c0e)
+#define XESocket_DecodeState      (0x00071c0e)
 #undef ESocket_TaskAssociation
 #undef XESocket_TaskAssociation
-#define ESocket_TaskAssociation   (0x0005800f)
-#define XESocket_TaskAssociation  (0x0007800f)
+#define ESocket_TaskAssociation   (0x00051c0f)
+#define XESocket_TaskAssociation  (0x00071c0f)
 #undef ESocket_ConnectToAddr
 #undef XESocket_ConnectToAddr
-#define ESocket_ConnectToAddr     (0x00058010)
-#define XESocket_ConnectToAddr    (0x00078010)
+#define ESocket_ConnectToAddr     (0x00051c10)
+#define XESocket_ConnectToAddr    (0x00071c10)
 #undef ESocket_TheirAddress
 #undef XESocket_TheirAddress
-#define ESocket_TheirAddress      (0x00058011)
-#define XESocket_TheirAddress     (0x00078011)
+#define ESocket_TheirAddress      (0x00051c11)
+#define XESocket_TheirAddress     (0x00071c11)
 
 /* Special error for 'SWI values out of range for this module' */
 #define error_BAD_SWI ((_kernel_oserror *) -1)
@@ -245,43 +245,49 @@ extern void PostFilter_Entry(void);
 _kernel_oserror *PostFilter_Handler(_kernel_swi_regs *r, void *pw);
 
 /* Error base for this module */
-#define ERROR_BASE (0x00580000)
-/* Error messages embedded in the module header, based at &580000 */
+#define ERROR_BASE (0x00051c00)
+/* Error messages embedded in the module header, based at &51c00 */
 #if defined(__riscos64) /* RISC OS 64bit build with GCC */
 /* Data is in the .rodata section, so is accessed directly */
-extern _kernel_oserror __err_Err_BadHandle; /* &580000 */
-extern _kernel_oserror __err_Err_NotConnected; /* &580001 */
-extern _kernel_oserror __err_Err_NotListening; /* &580002 */
-extern _kernel_oserror __err_Err_InvalidIP; /* &580003 */
-extern _kernel_oserror __err_Err_TooLow; /* &580004 */
+extern _kernel_oserror __err_Err_BadHandle; /* &51c00 */
+extern _kernel_oserror __err_Err_NotConnected; /* &51c01 */
+extern _kernel_oserror __err_Err_NotListening; /* &51c02 */
+extern _kernel_oserror __err_Err_BadMonitorType; /* &51c03 */
+extern _kernel_oserror __err_Err_InvalidIP; /* &51c04 */
+extern _kernel_oserror __err_Err_TooLow; /* &51c05 */
 
 #define Err_BadHandle (&__err_Err_BadHandle)
 #define Err_NotConnected (&__err_Err_NotConnected)
 #define Err_NotListening (&__err_Err_NotListening)
+#define Err_BadMonitorType (&__err_Err_BadMonitorType)
 #define Err_InvalidIP (&__err_Err_InvalidIP)
 #define Err_TooLow (&__err_Err_TooLow)
 #elif defined(__GNUC__) /* RISC OS 32bit build with GCC */
-extern void __err_Err_BadHandle(void); /* &580005 */
-extern void __err_Err_NotConnected(void); /* &580006 */
-extern void __err_Err_NotListening(void); /* &580007 */
-extern void __err_Err_InvalidIP(void); /* &580008 */
-extern void __err_Err_TooLow(void); /* &580009 */
+extern void __err_Err_BadHandle(void); /* &51c06 */
+extern void __err_Err_NotConnected(void); /* &51c07 */
+extern void __err_Err_NotListening(void); /* &51c08 */
+extern void __err_Err_BadMonitorType(void); /* &51c09 */
+extern void __err_Err_InvalidIP(void); /* &51c0a */
+extern void __err_Err_TooLow(void); /* &51c0b */
 
 #define Err_BadHandle ((_kernel_oserror*)(void *)__err_Err_BadHandle)
 #define Err_NotConnected ((_kernel_oserror*)(void *)__err_Err_NotConnected)
 #define Err_NotListening ((_kernel_oserror*)(void *)__err_Err_NotListening)
+#define Err_BadMonitorType ((_kernel_oserror*)(void *)__err_Err_BadMonitorType)
 #define Err_InvalidIP ((_kernel_oserror*)(void *)__err_Err_InvalidIP)
 #define Err_TooLow ((_kernel_oserror*)(void *)__err_Err_TooLow)
 #else /* Norcroft */
-extern void __err_Err_BadHandle(void); /* &58000a */
-extern void __err_Err_NotConnected(void); /* &58000b */
-extern void __err_Err_NotListening(void); /* &58000c */
-extern void __err_Err_InvalidIP(void); /* &58000d */
-extern void __err_Err_TooLow(void); /* &58000e */
+extern void __err_Err_BadHandle(void); /* &51c0c */
+extern void __err_Err_NotConnected(void); /* &51c0d */
+extern void __err_Err_NotListening(void); /* &51c0e */
+extern void __err_Err_BadMonitorType(void); /* &51c0f */
+extern void __err_Err_InvalidIP(void); /* &51c10 */
+extern void __err_Err_TooLow(void); /* &51c11 */
 
 #define Err_BadHandle ((_kernel_oserror*)(int)__err_Err_BadHandle)
 #define Err_NotConnected ((_kernel_oserror*)(int)__err_Err_NotConnected)
 #define Err_NotListening ((_kernel_oserror*)(int)__err_Err_NotListening)
+#define Err_BadMonitorType ((_kernel_oserror*)(int)__err_Err_BadMonitorType)
 #define Err_InvalidIP ((_kernel_oserror*)(int)__err_Err_InvalidIP)
 #define Err_TooLow ((_kernel_oserror*)(int)__err_Err_TooLow)
 #endif
